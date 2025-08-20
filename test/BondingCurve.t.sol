@@ -25,6 +25,7 @@ contract FundMeTest is Test {
     // uint256 public constant SEND_VALUE = 1000000000000000000;
 
     function setUp() external {
+        // this is the first one that runs
         // if (!isZkSyncChain()) {
         //     DeployFundMe deployer = new DeployFundMe();
         //     (fundMe, helperConfig) = deployer.deployFundMe();
