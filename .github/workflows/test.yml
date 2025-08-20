@@ -24,12 +24,11 @@ jobs:
         run: |
           forge --version
 
-      # I changed from this what is there now to prevent formatting errors in github workflow 
-        #this was checking everytime to ensure formatting is correct, which keot thorwing errors
-          #forge fmt --check 
+      # Use this if you do not want formatting to fail the CI
+          #forge fmt || true
       - name: Run Forge fmt
         run: |
-          forge fmt || true
+          forge fmt --check
           
         id: fmt
 
