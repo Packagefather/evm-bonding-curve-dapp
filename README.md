@@ -100,11 +100,11 @@ pump-curve-evm/
 │── contracts/
 │   ├── BondingCurve.sol        # Core bonding curve logic
 │   ├── Token.sol               # ERC20 token
+|   ├── Interfaces.sol          # ERC20 token and other interfaces
 │   ├── UniswapMigrator.sol     # Handles migration to Uniswap
 │
 │── scripts/
-│   ├── deploy.ts               # Deployment script
-│   ├── simulate.ts             # Simulate price changes
+│   ├── DeployBondingCurve.s.sol               # Deployment script
 │
 │── test/
 │   ├── BondingCurve.t.sol      # Unit tests
