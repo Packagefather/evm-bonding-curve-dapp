@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import { AggregatorV3Interface } from
-    "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import { PriceConverter } from "./PriceConverter.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {PriceConverter} from "./PriceConverter.sol";
 
-error FundMe__NotOwner();
+error BondingCurve__NotOwner();
 
-contract FundMe {
+contract BondingCurve {
     using PriceConverter for uint256;
     //this means that all the functions in Priceconverter
     //is available for all uint256 to call directly
@@ -27,7 +26,8 @@ contract FundMe {
 
     function fund() public payable {
         require(
-            msg.value.getConversionRate(s_priceFee) >= MINIMUM_USD, "You need to spend more ETH!"
+            msg.value.getConversionRate(s_priceFee) >= MINIMUM_USD,
+            "You need to spend more ETH!"
         );
         //check lesson 1, timestamp 5:4:29 for explanation
         //require(PriceConverter.getConversionRate(msg.value) >= MINIMUM_USD, "You need to spend more ETH!");
@@ -43,25 +43,35 @@ contract FundMe {
 
     modifier onlyOwner() {
         // require(msg.sender == owner);
-        if (msg.sender != i_owner) revert FundMe__NotOwner();
+        if (msg.sender != i_owner) revert BondingCurve__NotOwner();
         _;
     }
 
     function cheaperWithdraw() public onlyOwner {
         uint256 fundersLength = s_funders.length;
         //we read the array from memory as supposed to reading from storage
-        for (uint256 funderIndex = 0; funderIndex < fundersLength; funderIndex++) {
+        for (
+            uint256 funderIndex = 0;
+            funderIndex < fundersLength;
+            funderIndex++
+        ) {
             address funder = s_funders[funderIndex];
             s_addressToAmountFunded[funder] = 0;
         }
         s_funders = new address[](0);
         // call
-        (bool callSuccess,) = payable(msg.sender).call{ value: address(this).balance }("");
+        (bool callSuccess, ) = payable(msg.sender).call{
+            value: address(this).balance
+        }("");
         require(callSuccess, "Call failed");
     }
 
     function withdraw() public onlyOwner {
-        for (uint256 funderIndex = 0; funderIndex < s_funders.length; funderIndex++) {
+        for (
+            uint256 funderIndex = 0;
+            funderIndex < s_funders.length;
+            funderIndex++
+        ) {
             address funder = s_funders[funderIndex];
             s_addressToAmountFunded[funder] = 0;
         }
@@ -74,7 +84,9 @@ contract FundMe {
         // require(sendSuccess, "Send failed");
 
         // call
-        (bool callSuccess,) = payable(msg.sender).call{ value: address(this).balance }("");
+        (bool callSuccess, ) = payable(msg.sender).call{
+            value: address(this).balance
+        }("");
         require(callSuccess, "Call failed");
     }
 
@@ -107,7 +119,9 @@ contract FundMe {
      *  @param fundingAddress the address of the funder
      *  @return the amount funded
      */
-    function getAddressToAmountFunded(address fundingAddress) public view returns (uint256) {
+    function getAddressToAmountFunded(
+        address fundingAddress
+    ) public view returns (uint256) {
         return s_addressToAmountFunded[fundingAddress];
     }
 

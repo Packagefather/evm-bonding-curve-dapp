@@ -2,16 +2,17 @@
 
 pragma solidity ^0.8.19;
 
-//import {DeployFundMe} from "../../script/DeployFundMe.s.sol";
-import { FundMe } from "../src/BondingCurve.sol";
-//import {HelperConfig, CodeConstants} from "../../script/HelperConfig.s.sol";
-import { Test, console } from "forge-std/Test.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
+import {DeployBondingCurve} from "../script/DeployBondingCurve.s.sol";
+import {BondingCurve} from "../src/BondingCurve.sol";
+import {HelperConfig, CodeConstants} from "../script/HelperConfig.s.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {StdCheats} from "forge-std/StdCheats.sol";
 
-//import {MockV3Aggregator} from "../mock/MockV3Aggregator.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
-contract FundMeTest is Test {
-    FundMe public fundMe;
+contract BondingCurveTest is Test {
+    BondingCurve public bondingCurve;
+    HelperConfig public helperConfig;
 
     uint256 public constant SEND_VALUE = 0.1 ether; // just a value to make sure we are sending enough!
     uint256 public constant STARTING_USER_BALANCE = 10 ether;
@@ -25,6 +26,9 @@ contract FundMeTest is Test {
     // uint256 public constant SEND_VALUE = 1000000000000000000;
 
     function setUp() external {
+        DeployBondingCurve deployer = new DeployBondingCurve();
+        (bondingCurve, helperConfig) = deployer.deployBondingCurve();
+
         // this is the first one that runs
         // if (!isZkSyncChain()) {
         //     DeployFundMe deployer = new DeployFundMe();
