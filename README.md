@@ -1,6 +1,6 @@
 Pump.fun-style Bonding Curve dApp (EVM)
 
-[![Foundry CI](https://github.com/packagefather/evm-bonding-curve-dapp/actions/workflows/test.yml/badge.svg)](https://github.com/packagefather/evm-bonding-curve-dapp/actions/workflows/test.yml)
+[![Foundry CI](https://github.com/packagefather/evm-bonding-curve-dapp/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/packagefather/evm-bonding-curve-dapp/actions/workflows/test.yml)
 
 
 A decentralized application (dApp) that implements a bonding curve token launch mechanism on EVM-compatible chains (Ethereum, Base, Arbitrum, etc.).
