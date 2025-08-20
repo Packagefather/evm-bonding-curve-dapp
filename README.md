@@ -1,5 +1,8 @@
 Pump.fun-style Bonding Curve dApp (EVM)
 
+[![Foundry CI](https://github.com/packagefather/pump-fun-style-dapp-on-evm/actions/workflows/ci.yml/badge.svg)](https://github.com/packagefather/pump-fun-style-dapp-on-evm/actions)
+
+
 A decentralized application (dApp) that implements a bonding curve token launch mechanism on EVM-compatible chains (Ethereum, Base, Arbitrum, etc.).
 
 Inspired by pump.fun on Solana, this project allows users to buy and sell tokens directly from the bonding curve, gradually increasing token prices until a defined threshold is reached — after which the liquidity is migrated to a DEX like Uniswap V2 automatically.
