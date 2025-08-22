@@ -19,16 +19,24 @@ contract BondingCurveTest is Test {
     uint256 public constant GAS_PRICE = 1;
 
     uint160 public constant USER_NUMBER = 50;
-    address public constant USER = address(USER_NUMBER);
+    address public constant USER = address(USER_NUMBER); //USER = an Ethereum address derived from that number.
 
     // uint256 public constant SEND_VALUE = 1e18;
     // uint256 public constant SEND_VALUE = 1_000_000_000_000_000_000;
     // uint256 public constant SEND_VALUE = 1000000000000000000;
 
+    address Alice = makeAddr("Alice");
+    address Bob = makeAddr("Bob");
+    address Charlie = makeAddr("Charlie");
+
     function setUp() external {
         DeployBondingCurve deployer = new DeployBondingCurve();
         (bondingCurve, helperConfig) = deployer.deployBondingCurve();
 
+        console.log("I want to see who this user is", USER);
+        vm.deal(USER, 1 ether);
+        vm.deal(address(3), 1 ether);
+        //emit log_address(USER);
         // this is the first one that runs
         // if (!isZkSyncChain()) {
         //     DeployFundMe deployer = new DeployFundMe();
@@ -51,27 +59,29 @@ contract BondingCurveTest is Test {
         //     .priceFeed;
         // assertEq(retreivedPriceFeed, expectedPriceFeed);
     }
+
     /*
     function testFundFailsWithoutEnoughETH() public skipZkSync {
         vm.expectRevert();
         fundMe.fund();
     }
-
-    function testFundUpdatesFundedDataStructure() public skipZkSync {
+*/
+    function testFundUpdatesFundedDataStructure() public {
         vm.startPrank(USER);
-        fundMe.fund{value: SEND_VALUE}();
+
+        bondingCurve.fund{value: SEND_VALUE}();
         vm.stopPrank();
 
-        uint256 amountFunded = fundMe.getAddressToAmountFunded(USER);
+        uint256 amountFunded = bondingCurve.getAddressToAmountFunded(USER);
         assertEq(amountFunded, SEND_VALUE);
     }
 
-    function testAddsFunderToArrayOfFunders() public skipZkSync {
+    function testAddsFunderToArrayOfFunders() public {
         vm.startPrank(USER);
-        fundMe.fund{value: SEND_VALUE}();
+        bondingCurve.fund{value: SEND_VALUE}();
         vm.stopPrank();
 
-        address funder = fundMe.getFunder(0);
+        address funder = bondingCurve.getFunder(0);
         assertEq(funder, USER);
     }
 
@@ -79,35 +89,37 @@ contract BondingCurveTest is Test {
 
     modifier funded() {
         vm.prank(USER);
-        fundMe.fund{value: SEND_VALUE}();
-        assert(address(fundMe).balance > 0);
+        bondingCurve.fund{value: SEND_VALUE}();
+        assert(address(bondingCurve).balance > 0);
         _;
     }
 
-    function testOnlyOwnerCanWithdraw() public funded skipZkSync {
+    function testOnlyOwnerCanWithdraw() public funded {
         vm.expectRevert();
         vm.prank(address(3)); // Not the owner
-        fundMe.withdraw();
+        bondingCurve.withdraw();
     }
 
-    function testWithdrawFromASingleFunder() public funded skipZkSync {
+    function testWithdrawFromASingleFunder() public funded {
         // Arrange
-        uint256 startingFundMeBalance = address(fundMe).balance;
-        uint256 startingOwnerBalance = fundMe.getOwner().balance;
+        uint256 startingFundMeBalance = address(bondingCurve).balance;
+        uint256 startingOwnerBalance = bondingCurve.getOwner().balance;
 
-        // vm.txGasPrice(GAS_PRICE);
-        // uint256 gasStart = gasleft();
+        // Anvil local chain has a defaulted gas price of 0 wei
+        // so, to emulate real chain behavior, we set a gas price
+        vm.txGasPrice(GAS_PRICE);
+        // uint256 gasStart = gasleft(); eg 1000. At this point, we have 1000 gas left. meaning, nothing used yet
         // // Act
-        vm.startPrank(fundMe.getOwner());
-        fundMe.withdraw();
+        vm.startPrank(bondingCurve.getOwner());
+        bondingCurve.withdraw(); // this maybe used 200 gas
         vm.stopPrank();
 
-        // uint256 gasEnd = gasleft();
+        // uint256 gasEnd = gasleft();  // 800 gas left, meaning we used 200 gas
         // uint256 gasUsed = (gasStart - gasEnd) * tx.gasprice;
 
         // Assert
-        uint256 endingFundMeBalance = address(fundMe).balance;
-        uint256 endingOwnerBalance = fundMe.getOwner().balance;
+        uint256 endingFundMeBalance = address(bondingCurve).balance;
+        uint256 endingOwnerBalance = bondingCurve.getOwner().balance;
         assertEq(endingFundMeBalance, 0);
         assertEq(
             startingFundMeBalance + startingOwnerBalance,
@@ -116,11 +128,11 @@ contract BondingCurveTest is Test {
     }
 
     // Can we do our withdraw function a cheaper way?
-    function testWithdrawFromMultipleFunders() public funded skipZkSync {
+    function testWithdrawFromMultipleFunders() public funded {
         uint160 numberOfFunders = 10;
         uint160 startingFunderIndex = 2 + USER_NUMBER;
 
-        uint256 originalFundMeBalance = address(fundMe).balance; // This is for people running forked tests!
+        uint256 originalFundMeBalance = address(bondingCurve).balance; // This is for people running forked tests!
 
         for (
             uint160 i = startingFunderIndex;
@@ -130,29 +142,27 @@ contract BondingCurveTest is Test {
             // we get hoax from stdcheats
             // prank + deal
             hoax(address(i), STARTING_USER_BALANCE);
-            fundMe.fund{value: SEND_VALUE}();
+            bondingCurve.fund{value: SEND_VALUE}();
         }
 
-        uint256 startingFundedeBalance = address(fundMe).balance;
-        uint256 startingOwnerBalance = fundMe.getOwner().balance;
+        uint256 startingFundedeBalance = address(bondingCurve).balance;
+        uint256 startingOwnerBalance = bondingCurve.getOwner().balance;
 
-        vm.startPrank(fundMe.getOwner());
-        fundMe.withdraw();
+        vm.startPrank(bondingCurve.getOwner());
+        bondingCurve.withdraw();
         vm.stopPrank();
 
-        assert(address(fundMe).balance == 0);
+        assert(address(bondingCurve).balance == 0);
         assert(
             startingFundedeBalance + startingOwnerBalance ==
-                fundMe.getOwner().balance
+                bondingCurve.getOwner().balance
         );
 
         uint256 expectedTotalValueWithdrawn = ((numberOfFunders) * SEND_VALUE) +
             originalFundMeBalance;
-        uint256 totalValueWithdrawn = fundMe.getOwner().balance -
+        uint256 totalValueWithdrawn = bondingCurve.getOwner().balance -
             startingOwnerBalance;
 
         assert(expectedTotalValueWithdrawn == totalValueWithdrawn);
     }
-
-    */
 }
