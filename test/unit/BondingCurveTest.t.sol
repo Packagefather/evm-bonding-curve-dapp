@@ -2,13 +2,13 @@
 
 pragma solidity ^0.8.19;
 
-import {DeployBondingCurve} from "../../script/DeployBondingCurve.s.sol";
-import {BondingCurve} from "../../src/BondingCurve.sol";
-import {HelperConfig, CodeConstants} from "../../script/HelperConfig.s.sol";
-import {Test, console} from "forge-std/Test.sol";
-import {StdCheats} from "forge-std/StdCheats.sol";
+import { DeployBondingCurve } from "../../script/DeployBondingCurve.s.sol";
+import { BondingCurve } from "../../src/BondingCurve.sol";
+import { HelperConfig, CodeConstants } from "../../script/HelperConfig.s.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
 
-import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
+import { MockV3Aggregator } from "../mocks/MockV3Aggregator.sol";
 
 contract BondingCurveTest is Test {
     BondingCurve public bondingCurve;
@@ -69,7 +69,7 @@ contract BondingCurveTest is Test {
     function testFundUpdatesFundedDataStructure() public {
         vm.startPrank(USER);
 
-        bondingCurve.fund{value: SEND_VALUE}();
+        bondingCurve.fund{ value: SEND_VALUE }();
         vm.stopPrank();
 
         uint256 amountFunded = bondingCurve.getAddressToAmountFunded(USER);
@@ -78,7 +78,7 @@ contract BondingCurveTest is Test {
 
     function testAddsFunderToArrayOfFunders() public {
         vm.startPrank(USER);
-        bondingCurve.fund{value: SEND_VALUE}();
+        bondingCurve.fund{ value: SEND_VALUE }();
         vm.stopPrank();
 
         address funder = bondingCurve.getFunder(0);
@@ -89,7 +89,7 @@ contract BondingCurveTest is Test {
 
     modifier funded() {
         vm.prank(USER);
-        bondingCurve.fund{value: SEND_VALUE}();
+        bondingCurve.fund{ value: SEND_VALUE }();
         assert(address(bondingCurve).balance > 0);
         _;
     }
@@ -134,15 +134,11 @@ contract BondingCurveTest is Test {
 
         uint256 originalFundMeBalance = address(bondingCurve).balance; // This is for people running forked tests!
 
-        for (
-            uint160 i = startingFunderIndex;
-            i < numberOfFunders + startingFunderIndex;
-            i++
-        ) {
+        for (uint160 i = startingFunderIndex; i < numberOfFunders + startingFunderIndex; i++) {
             // we get hoax from stdcheats
             // prank + deal
             hoax(address(i), STARTING_USER_BALANCE);
-            bondingCurve.fund{value: SEND_VALUE}();
+            bondingCurve.fund{ value: SEND_VALUE }();
         }
 
         uint256 startingFundedeBalance = address(bondingCurve).balance;
@@ -153,15 +149,11 @@ contract BondingCurveTest is Test {
         vm.stopPrank();
 
         assert(address(bondingCurve).balance == 0);
-        assert(
-            startingFundedeBalance + startingOwnerBalance ==
-                bondingCurve.getOwner().balance
-        );
+        assert(startingFundedeBalance + startingOwnerBalance == bondingCurve.getOwner().balance);
 
-        uint256 expectedTotalValueWithdrawn = ((numberOfFunders) * SEND_VALUE) +
-            originalFundMeBalance;
-        uint256 totalValueWithdrawn = bondingCurve.getOwner().balance -
-            startingOwnerBalance;
+        uint256 expectedTotalValueWithdrawn =
+            ((numberOfFunders) * SEND_VALUE) + originalFundMeBalance;
+        uint256 totalValueWithdrawn = bondingCurve.getOwner().balance - startingOwnerBalance;
 
         assert(expectedTotalValueWithdrawn == totalValueWithdrawn);
     }
