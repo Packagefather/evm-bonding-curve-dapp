@@ -2,12 +2,12 @@
 
 pragma solidity ^0.8.19;
 
-import { DeployBondingCurve } from "../../script/DeployBondingCurve.s.sol";
-import { FundFundMe, WithdrawFundMe } from "../../script/Interactions.s.sol";
-import { BondingCurve } from "../../src/BondingCurve.sol";
-import { HelperConfig } from "../../script/HelperConfig.s.sol";
-import { Test, console } from "forge-std/Test.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
+import {DeployBondingCurve} from "../../script/DeployBondingCurve.s.sol";
+import {FundFundMe, WithdrawFundMe} from "../../script/Interactions.s.sol";
+import {BondingCurve} from "../../src/BondingCurve.sol";
+import {HelperConfig} from "../../script/HelperConfig.s.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {StdCheats} from "forge-std/StdCheats.sol";
 
 //import {ZkSyncChainChecker} from "lib/foundry-devops/src/ZkSyncChainChecker.sol";
 
@@ -52,7 +52,7 @@ contract InteractionsTest is
 
         // Using vm.prank to simulate funding from the USER address
         vm.prank(USER);
-        bondingCurve.fund{ value: SEND_VALUE }();
+        bondingCurve.fund{value: SEND_VALUE}();
 
         WithdrawFundMe withdrawFundMe = new WithdrawFundMe();
         withdrawFundMe.withdrawFundMe(address(bondingCurve));
@@ -62,6 +62,9 @@ contract InteractionsTest is
 
         assert(address(bondingCurve).balance == 0);
         assertEq(afterUserBalance + SEND_VALUE, preUserBalance);
-        assertEq(preOwnerBalance + SEND_VALUE + originalFundMeBalance, afterOwnerBalance);
+        assertEq(
+            preOwnerBalance + SEND_VALUE + originalFundMeBalance,
+            afterOwnerBalance
+        );
     }
 }
