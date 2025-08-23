@@ -9,30 +9,162 @@ Inspired by pump.fun on Solana, this project allows users to buy and sell tokens
 
 🚀 Features
 
-Bonding Curve Pricing
-Implements an automated token pricing model using a constant product formula:
+## **Core Features**
+
+### **1. Bonding Curve Pricing**
+Implements an **automated token pricing model** using the constant product formula:
 ```
 vTOKEN * vETH = k
 ```
 
-Token Launch
-Deploys an ERC20 token and launches it directly on the bonding curve.
 
-Dynamic Pricing
-The token price increases automatically as tokens are purchased.
+- **Dynamic price discovery** → Token price automatically adjusts based on demand.
+- **Fair entry & exit points** → No manual intervention; the curve determines price.
 
-Migration to Uniswap
-At ~80% sold allocation, tokens & collateral migrate to Uniswap V2 liquidity pool.
+---
 
-Fee Deduction
-Migration fees deducted automatically for pool creation and protocol fee.
+### **2. Token Launch**
+- Deploys a new **ERC20 token** directly from the **factory contract**.
+- Immediately integrates the token with the bonding curve.
+- Token allocation defined at creation — **e.g., 10 BNB → 20 BNB liquidity range**.
 
-Upgradeable Contract Architecture (optional)
-Future-ready design for protocol updates.
+---
+
+### **3. Dynamic Pricing**
+- Token price **increases automatically** as tokens are purchased.
+- Early buyers benefit from **cheaper entry prices**.
+- Encourages **faster participation** due to increasing cost curve.
+
+---
+
+### **4. Migration to PancakeSwap**
+- At **~80% token allocation sold**, remaining tokens + raised BNB **automatically migrate** to a **PancakeSwap V2 liquidity pool**.
+- Liquidity tokens are **burned** to ensure **permanent liquidity locking**.
+
+---
+
+### **5. Fee Mechanisms**
+
+#### **Platform & Trading Fees**
+- **2% platform fee** on buys.
+- **2% platform fee** on sells.
+- **Separate wallets** handle:
+  - Trading fees.
+  - Migration fees.
+
+#### **Referral System**
+- **2% referral reward** from **every buyer’s** purchase.
+- If no referral is provided, the **launcher** (token creator) receives the referral fee.
+- Referral rewards are **claimable** by users — **not auto-transferred**.
+
+---
+
+### **6. Anti-Fraud Mechanism (AntiFud)**
+- **30% antifud fee** applied under special protective scenarios.
+- Collected antifud fee split:
+  - **50% credited to the token launcher**.
+  - **50% added to liquidity** to strengthen price stability.
+
+---
+
+### **7. Graduation Rewards**
+Upon **migration completion**:
+- **Launcher** receives **5% of total raised funds**.
+- **Platform** receives **5% of total raised funds**.
+- **90%+ of total raised funds** are added to **permanent liquidity**.
+- If antifud fees were collected, **even more liquidity** gets added.
+
+---
+
+### **8. Liquidity Migration & Burn**
+- Migrated liquidity is locked permanently:
+  - Tokens and BNB are paired on **PancakeSwap V2**.
+  - Liquidity pool (LP) tokens are **burned**.
+- Ensures **rug-pull resistance** and **trustless liquidity locking**.
+
+---
+
+### **9. Event Emissions**
+- Emit comprehensive events for:
+  - Token launches.
+  - Purchases.
+  - Sells.
+  - Migration.
+  - Referral rewards.
+  - Graduation rewards.
+  - Top traders leaderboard.
+
+---
+
+### **10. Top Traders Leaderboard**
+- Weekly tracking of **top traders** based on:
+  - **Buy volumes**.
+  - **Sell volumes**.
+- Emit events to highlight active users and drive engagement.
+
+---
+
+### **11. Ownership & Permissions**
+- **Factory contract** transfers ownership of the deployed token/curve **to the creator**.
+- Creator can:
+  - Retain control.
+  - Or **renounce ownership** to make the token fully decentralized.
+
+---
+
+### **12. Claimable Rewards**
+- **Referral rewards**, **launcher fees**, and **creator allocations** are:
+  - **Stored in the contract**.
+  - **Claimable** by users via explicit functions.
+  - **Not auto-distributed**, reducing gas and increasing user control.
+
+---
+
+### **13. Upgradeable Contract Architecture (Optional)**
+- Factory uses **OpenZeppelin’s Clones library** for efficient deployment.
+- Future upgrades supported by:
+  - **Versioned implementations**.
+  - Existing clones remain unaffected.
+- Enables smooth rollout of **new features** without disrupting old launches.
+
+---
+
+## **High-Level Flow**
+
+1. **Creator** initiates a token launch via the **Factory**.
+2. **Factory**:
+   - Deploys a **new ERC20 token**.
+   - Deploys a **Bonding Curve clone**.
+   - Initializes it with token details and allocations.
+3. Users **buy tokens** → **price increases** via bonding curve math.
+4. **Referrals** and **fees** are processed in real time.
+5. Upon reaching ~80% allocation:
+   - Tokens + raised funds **migrate** to PancakeSwap V2.
+   - LP tokens are **burned**.
+6. Graduation rewards, platform fees, and launcher incentives become **claimable**.
+
+---
+
+## **Key Contract Components**
+
+| **Component**        | **Responsibility**                               |
+|----------------------|--------------------------------------------------|
+| **Factory**          | Deploys tokens & bonding curves, handles ownership transfer. |
+| **BondingCurve**     | Manages buy/sell pricing, fee deductions, antifud, and migration. |
+| **Token (ERC20)**    | Newly deployed project token with integrated trading logic. |
+| **Referral System**  | Tracks referrals, calculates claimable rewards. |
+| **Leaderboard**      | Tracks and emits weekly top trader volumes. |
+
+---
+
+## **Summary**
+This launchpad combines **bonding curve tokenomics**, **referral incentives**, **automated liquidity migration**, and **anti-fraud protections** into a single **scalable**, **upgradeable** ecosystem.
+
+
 
 
 📜 Bonding Curve Overview
-
+ 
 This dApp uses a virtual reserves-based constant product formula to control price dynamics:
 ```
 vTOKEN * vETH = k
@@ -101,9 +233,9 @@ DEX Integration → Uniswap V2 Router
 
 pump-curve-evm/
 │── contracts/
-│   ├── BondingCurve.sol        # Core bonding curve logic
+│   ├── BondingCurve.sol        # Core bonding curve logic implementation
 │   ├── Token.sol               # ERC20 token
-|   ├── Interfaces.sol          # ERC20 token and other interfaces
+|   ├── Factory.sol             # Central point where curve implemetations are called from
 │   ├── UniswapMigrator.sol     # Handles migration to Uniswap
 │
 │── scripts/
@@ -162,6 +294,8 @@ Tokens Sold
 ```
 
 🛤️ Roadmap
+ 
+ Factory contract to handle implementation deployments
 
  Bonding curve buy/sell logic
 

@@ -5,6 +5,8 @@ libs = ["lib"]
 #auto_detect_remappings = true # recursive auto-detection of remappings
 remappings = [
     "@chainlink/contracts/=lib/chainlink-brownie-contracts/contracts/",
+    "@openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/",
+    "@solady/=lib/solady/src/",
 ]
 ffi = true #keep it false, except when needed for this foundry fetching of most recetn deployment
 optimizer = true
