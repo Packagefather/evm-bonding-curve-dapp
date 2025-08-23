@@ -6,17 +6,21 @@ import {Pausable} from "@openzeppelin-contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin-contracts/access/Ownable2Step.sol";
 import {SafeTransferLib} from "@solady/utils/SafeTransferLib.sol";
 import {CurveToken} from "./CurveToken.sol";
+import "./IFactory.sol";
 
 contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     using SafeTransferLib for address;
 
-    // Config
+    IFactory public factory;
     address public token;
-    address public treasury;
-    uint96 public tradeFeeBps; // curve fee on trades
-    uint96 public protocolFeeBps; // protocol cut separated
+    bool private initialized;
+
+    address public referrer;
+    address public creator;
+    mapping(address => address) public referrerOf;
+
     uint256 public allocationA; // ~80% of supply
-    uint256 public migrationMcapEth; // FDV at A (for sanity checks)
+    uint256 public curveLimit; // FDV at A (for sanity checks)
 
     // Virtual reserves (18 decimals assumed)
     uint256 public vToken; // starts at iVToken
@@ -33,32 +37,49 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 tokensMigrated,
         uint256 ethMigrated
     );
+    event Initialized(address indexed token, address indexed launcher);
 
     error TradingStopped();
     error ZeroAmount();
     error Slippage();
+
+    constructor() {
+        //treasury = _treasury;
+        //superAdmin = msg.sender;
+    }
 
     function initialize(
         address _token,
         uint256 _iVToken,
         uint256 _iVEth,
         uint256 _allocationA,
-        uint256 _migrationMcapEth,
-        uint96 _tradeFeeBps,
-        address _treasury,
-        uint96 _protocolFeeBps,
-        address _owner
+        uint256 _curveLimit,
+        //address factoryAddress,
+        //address _treasury,
+        //uint96 _protocolFeeBps,
+        address _creator
     ) external {
+        require(!initialized, "Already initialized");
         require(token == address(0), "init once");
+        //require(treasury != address(0), "Treasury not set");
+        require(_curveLimit >= factory.minCurveLimit(), "limit too low");
+        require(_curveLimit <= factory.maxCurveLimit(), "limit too high");
+
+        // Store factory
+        factory = IFactory(msg.sender);
+        //require(_allocationA > 0, "allocationA=0");
+
         token = _token;
         vToken = _iVToken;
         vEth = _iVEth;
         allocationA = _allocationA;
-        migrationMcapEth = _migrationMcapEth;
-        tradeFeeBps = _tradeFeeBps;
-        treasury = _treasury;
-        protocolFeeBps = _protocolFeeBps;
-        _transferOwnership(_owner);
+        curveLimit = _curveLimit;
+        //antifiludFeeBps = _antifiludFeeBps;
+        creator = _creator;
+        //protocolFeeBps = _protocolFeeBps;
+        //_transferOwnership(creator);
+        initialized = true;
+        emit Initialized(_token, address(this));
     }
 
     // -------- BUY --------
@@ -185,5 +206,23 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function setFactory(address _factory) external onlyOwner {
+        factory = IFactory(_factory);
+    }
+
+    // GET FUNCTIONS
+    function getTreasury() internal view returns (address) {
+        return factory.treasury();
+    }
+
+    function getProtocolFeeBps() internal view returns (uint96) {
+        return factory.protocolFeeBps();
+    }
+
+    function getLimits() public view returns (uint256 min, uint256 max) {
+        min = factory.minCurveLimit();
+        max = factory.maxCurveLimit();
     }
 }
