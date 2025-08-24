@@ -77,6 +77,7 @@ contract CurveFactory is Ownable(msg.sender) {
         uint256 iVEth; // 1.6e18 wei
         uint256 allocationA; // 80% of totalSupply
         uint256 migrationMcapEth; // FDV at A, e.g., 25e18
+        uint256 minHoldingForReferrer;
         //address creator; I am using msg.sender here
     }
 
@@ -100,8 +101,8 @@ contract CurveFactory is Ownable(msg.sender) {
             p.iVEth,
             p.allocationA,
             p.migrationMcapEth,
-            msg.sender // this is the creator
-            //address(this) // passing the factory address to each clone
+            msg.sender, // this is the creator
+            p.minHoldingForReferrer
         );
 
         // Mint full allocation to the bonding curve

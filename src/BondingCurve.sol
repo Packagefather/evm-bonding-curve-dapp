@@ -83,11 +83,14 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     // -------- BUY --------
 
     receive() external payable {
-        buy(0, referrerAddress); // minTokensOut = 0
+        //buy(0, referrerAddress); // minTokensOut = 0
+
+        revert(); // ------------------------------------------------------
     }
 
     function buy(
-        uint256 minTokensOut
+        uint256 minTokensOut,
+        address referrer
     ) public payable nonReentrant whenNotPaused {
         if (migrated) revert TradingStopped();
         uint256 ethIn = msg.value;
@@ -97,6 +100,15 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
         uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
         uint256 ethInEff = ethIn - refFeeEth - protoEth;
+
+        // ===== VALIDATE REFERRER =====
+        if (referrer != address(0) && referrer != msg.sender) {
+            // Check if referrer actually holds some tokens before rewarding them
+            if (CurveToken(token).balanceOf(referrer) > 0) {
+                refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
+                // Referral fee will be sent later
+            }
+        }
 
         // compute tokensOut = vToken - k / (vEth + ethInEff)
         uint256 k = vToken * vEth;
