@@ -150,18 +150,15 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(sentC, "BNB transfer failed");
 
         // compute tokensOut = vToken - k / (vEth + ethInEff)
-        uint256 tokensOut = _getTokensOut(ethInEff);
+        uint256 tokensOut = calculateTokensOut(ethInEff);
 
         require(tokensOut >= minTokensOut, "slippage too high");
         require(sold + tokensOut <= allocationA, "exceeds allocationA");
 
-        // effects
-        //vEth = newVEth;
-        vToken = vToken - tokensOut; // virtual token reserve decreases
         sold += tokensOut;
 
         // interactions
-        CurveToken(token).safeTransfer(msg.sender, tokensOut);
+        CurveToken(token).transfer(msg.sender, tokensOut);
 
         // check migration
         if (sold >= allocationA) {
@@ -172,7 +169,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     }
 
     // -------- SELL --------
-
+    /*
     function sell(
         uint256 tokensIn,
         uint256 minEthOut
@@ -211,7 +208,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
         emit Sold(msg.sender, tokensIn, ethOut);
     }
-
+*/
     function swapQuote(
         uint256 ethIn,
         bool isBuying
