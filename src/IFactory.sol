@@ -23,7 +23,7 @@ interface IFactory {
 
     function antiFudPercentage() external view returns (uint96); // e.g. 30% antifud
 
-    function antiFudSplitLauncher() external view returns (uint96); // % of antifud sent to launcher
+    function antifiludLauncherQuotaBps() external view returns (uint96); // % of antifud sent to launcher
 
     // --- Ownership ---
     function owner() external view returns (address);

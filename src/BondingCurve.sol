@@ -19,6 +19,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     address public creator;
     mapping(address => address) public referrerOf;
     mapping(address => uint256) public referralRewards;
+    mapping(address => uint256) public creatorsRewards;
 
     uint256 public allocationA; // ~80% of supply
     uint256 public curveLimit; // FDV at A (for sanity checks)
@@ -27,6 +28,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     // Virtual reserves (18 decimals assumed)
     uint256 public vToken; // starts at iVToken
     uint256 public vEth; // starts at iVEth
+    uint256 public rToken; // real token reserve (if any)
+    uint256 public rEth; // real ETH reserve (if any)
 
     uint256 public bonusLiquidity; // e.g. 50% of antifud fee funds, added at migration
 
@@ -133,7 +136,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
                 emit ReferralBonusAwarded(factory.treasury(), refFeeEth);
             }
         } else {
-            // send it tot the admin fee account
+            // send it to the admin fee account
             (bool sentB, ) = payable(factory.treasury()).call{value: refFeeEth}(
                 ""
             );
@@ -147,15 +150,13 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(sentC, "BNB transfer failed");
 
         // compute tokensOut = vToken - k / (vEth + ethInEff)
-        uint256 k = vToken * vEth;
-        uint256 newVEth = vEth + ethInEff;
-        uint256 tokensOut = vToken - (k / newVEth);
+        uint256 tokensOut = _getTokensOut(ethInEff);
 
         require(tokensOut >= minTokensOut, "slippage too high");
         require(sold + tokensOut <= allocationA, "exceeds allocationA");
 
         // effects
-        vEth = newVEth;
+        //vEth = newVEth;
         vToken = vToken - tokensOut; // virtual token reserve decreases
         sold += tokensOut;
 
@@ -252,6 +253,69 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 k = vToken * vEth;
         uint256 newVToken = vToken + tokensIn;
         ethOut = vEth - (k / newVToken);
+    }
+
+    function calculateTokensOut(
+        uint256 amountIn,
+        bool isBuying
+    ) internal returns (uint256 amount_out) {
+        // uint256 k = vToken * vEth;
+        // uint256 newVEth = vEth + amountIn;
+        // tokensOut = vToken - (k / newVEth);
+        uint256 k = vToken * vEth;
+        //uint256 tokensOut;
+        //uint256 ethOut;
+        if (isBuying) {
+            //we calculate fees before passing effETH in here
+
+            uint256 newVEth = vEth + amountIn;
+            amount_out = vToken - (k / newVEth);
+
+            //updating the virtual and real reserves
+            vEth = newVEth;
+            vToken -= amount_out; // virtual token reserve decreases
+            rEth += amountIn; // real ETH reserve increases
+            rToken -= amount_out; // real token reserve decreases
+            //return (vToken, vEth, amount_out);
+            return amount_out;
+        } else {
+            // we claculate fee inside here
+
+            uint256 vTOKEN_new = vToken + amountIn;
+            uint256 vETH_new = k / vTOKEN_new;
+
+            uint256 eth_out = vEth - vETH_new;
+
+            //calculate the fees
+            uint256 protoEth = (eth_out * factory.platformFeeBps()) / 10_000;
+            uint256 antifudEth = (eth_out * factory.antiFudPercentage()) /
+                10_000;
+            uint256 new_eth_out = eth_out - protoEth - antifudEth; // what will go to the seller
+
+            // updating the virtual and real reserves
+            vToken = vTOKEN_new;
+            rToken += amountIn; // real token reserve increases
+            vEth -= eth_out; // virtual ETH reserve decreases
+            rEth -= eth_out; // real ETH reserve decreases
+
+            //transfer fees accordingly
+            if (protoEth > 0) {
+                (bool sent, ) = payable(factory.treasury()).call{
+                    value: protoEth
+                }("");
+                require(sent, "BNB transfer failed");
+            }
+            if (antifudEth > 0) {
+                uint256 toLauncher = (antifudEth *
+                    factory.antifiludLauncherQuotaBps()) / 10_000;
+                uint256 toCurve = antifudEth - toLauncher;
+
+                bonusLiquidity += toCurve; // keep the antifud portion in the curve for liquidity boost at migration
+                creatorsRewards[creator] += toLauncher; // save the portion for the creator to withdraw later
+            }
+
+            return new_eth_out;
+        }
     }
 
     // -------- Migration --------

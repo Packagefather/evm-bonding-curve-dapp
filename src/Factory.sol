@@ -17,7 +17,7 @@ contract CurveFactory is Ownable(msg.sender) {
     uint96 public referalFeeBps; // 2% charged to referrer
     uint96 public antifiludFeeBps; // 30% charged to filud. 50% goes to creator, 50% goes to liquidity pool
     uint96 public migrationFeeBps; // 10% charged to migration. 50% goes to creator, 50% goes to protocol
-
+    uint96 public antifiludLauncherQuotaBps;
     uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
 
