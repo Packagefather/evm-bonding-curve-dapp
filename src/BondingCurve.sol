@@ -175,21 +175,22 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     }
 
     function getTokensOut(
-        uint256 ethIn
+        uint256 ethIn,
+        bool isBuying
     ) public view returns (uint256 tokensOut) {
         if (ethIn == 0) return 0;
 
-        // get fees from factory
-        uint256 refFeeEth = (ethIn * IFactory(factory).referralFeeBps()) /
-            10_000;
-        uint256 protoEth = (ethIn * IFactory(factory).platformFeeBps()) /
-            10_000;
-        uint256 ethInEff = ethIn - refFeeEth - protoEth;
+        if (isBuying) {
+            // get fees from factory
+            uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
+            uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
+            uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
-        // bonding curve math: tokensOut = vToken - k / (vEth + ethInEff)
-        uint256 k = vToken * vEth;
-        uint256 newVEth = vEth + ethInEff;
-        tokensOut = vToken - (k / newVEth);
+            // bonding curve math: tokensOut = vToken - k / (vEth + ethInEff)
+            uint256 k = vToken * vEth;
+            uint256 newVEth = vEth + ethInEff;
+            tokensOut = vToken - (k / newVEth);
+        } else {}
     }
 
     // -------- Migration --------
