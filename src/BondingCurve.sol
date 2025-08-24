@@ -18,9 +18,11 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     address public referrer;
     address public creator;
     mapping(address => address) public referrerOf;
+    mapping(address => uint256) public referralRewards;
 
     uint256 public allocationA; // ~80% of supply
     uint256 public curveLimit; // FDV at A (for sanity checks)
+    uint256 public minHoldingForReferrer; // min tokens a referrer must hold to get referral fees
 
     // Virtual reserves (18 decimals assumed)
     uint256 public vToken; // starts at iVToken
@@ -38,6 +40,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 ethMigrated
     );
     event Initialized(address indexed token, address indexed launcher);
+    event ReferralBonusAwarded(address indexed referrer, uint256 amount);
 
     error TradingStopped();
     error ZeroAmount();
@@ -57,7 +60,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         //address factoryAddress,
         //address _treasury,
         //uint96 _protocolFeeBps,
-        address _creator
+        address _creator,
+        uint256 _minHoldingForReferrer
     ) external {
         require(!initialized, "Already initialized");
         require(token == address(0), "init once");
@@ -75,6 +79,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         allocationA = _allocationA;
         curveLimit = _curveLimit;
         creator = _creator;
+        minHoldingForReferrer = _minHoldingForReferrer;
         initialized = true;
 
         emit Initialized(_token, address(this));
@@ -90,8 +95,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     function buy(
         uint256 minTokensOut,
-        address referrer
+        address _referrer
     ) public payable nonReentrant whenNotPaused {
+        require(_referrer != msg.sender, "you cannot refer yourself");
         if (migrated) revert TradingStopped();
         uint256 ethIn = msg.value;
         if (ethIn == 0) revert ZeroAmount();
@@ -101,14 +107,42 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
         uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
-        // ===== VALIDATE REFERRER =====
-        if (referrer != address(0) && referrer != msg.sender) {
+        // ===== VALIDATE AND REWARD REFERRER =====
+        if (_referrer != address(0)) {
+            // if referer has been set, send it to the referer
             // Check if referrer actually holds some tokens before rewarding them
-            if (CurveToken(token).balanceOf(referrer) > 0) {
-                refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
-                // Referral fee will be sent later
+            if (
+                CurveToken(token).balanceOf(_referrer) >= minHoldingForReferrer
+            ) {
+                // add it to the referrers mapping
+                if (referrerOf[msg.sender] == address(0)) {
+                    referrerOf[msg.sender] = _referrer;
+                }
+
+                referralRewards[referrerOf[msg.sender]] += refFeeEth;
+                emit ReferralBonusAwarded(referrerOf[msg.sender], refFeeEth);
+            } else {
+                // send it tot the admin fee account
+                (bool sentA, ) = payable(factory.treasury()).call{
+                    value: refFeeEth
+                }("");
+                require(sentA, "BNB transfer failed");
+
+                emit ReferralBonusAwarded(factory.treasury(), refFeeEth);
             }
+        } else {
+            // send it tot the admin fee account
+            (bool sentB, ) = payable(factory.treasury()).call{value: refFeeEth}(
+                ""
+            );
+            require(sentB, "BNB transfer failed");
+
+            emit ReferralBonusAwarded(factory.treasury(), refFeeEth);
         }
+
+        // CREDIT TREASURY WITH PROTOCOL FEES
+        (bool sentC, ) = payable(factory.treasury()).call{value: protoEth}("");
+        require(sentC, "BNB transfer failed");
 
         // compute tokensOut = vToken - k / (vEth + ethInEff)
         uint256 k = vToken * vEth;
