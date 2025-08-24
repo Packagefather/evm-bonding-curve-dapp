@@ -61,12 +61,12 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     ) external {
         require(!initialized, "Already initialized");
         require(token == address(0), "init once");
-        //require(treasury != address(0), "Treasury not set");
         require(_curveLimit >= factory.minCurveLimit(), "limit too low");
         require(_curveLimit <= factory.maxCurveLimit(), "limit too high");
 
-        // Store factory
         factory = IFactory(msg.sender);
+        // Check with the factory if this token is already used
+        require(!factory.tokenUsed(_token), "Token already in use");
         //require(_allocationA > 0, "allocationA=0");
 
         token = _token;
@@ -74,11 +74,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         vEth = _iVEth;
         allocationA = _allocationA;
         curveLimit = _curveLimit;
-        //antifiludFeeBps = _antifiludFeeBps;
         creator = _creator;
-        //protocolFeeBps = _protocolFeeBps;
-        //_transferOwnership(creator);
         initialized = true;
+
         emit Initialized(_token, address(this));
     }
 

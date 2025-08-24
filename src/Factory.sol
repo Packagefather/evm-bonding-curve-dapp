@@ -21,6 +21,8 @@ contract CurveFactory is Ownable(msg.sender) {
     uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
 
+    mapping(address => bool) public tokenUsed;
+
     event ImplementationUpdated(address indexed newImpl);
     event CurveCreated(
         address indexed curve,
@@ -33,7 +35,7 @@ contract CurveFactory is Ownable(msg.sender) {
         uint256 migrationMcapEth
     );
     event TreasuryUpdated(address indexed newTreasury);
-    event superAdminUpdated(address indexed superAdmin);=
+    event superAdminUpdated(address indexed superAdmin);
     event MigrationFeeWalletUpdated(address indexed newTreasury);
     event ProtocolFeeUpdated(uint96 newFee);
     event ReferalFeeBpsUpdated(uint96 newFee);
@@ -85,6 +87,10 @@ contract CurveFactory is Ownable(msg.sender) {
         token = address(
             new CurveToken(p.name, p.symbol, p.decimals, address(this))
         );
+
+        // Mark token as used BEFORE initializing the clone
+        require(!tokenUsed[token], "Token already used");
+        tokenUsed[token] = true;
 
         // 2) Clone curve & init
         curve = Clones.clone(curveImpl);
