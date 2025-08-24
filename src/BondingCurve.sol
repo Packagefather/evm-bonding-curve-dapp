@@ -28,6 +28,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     uint256 public vToken; // starts at iVToken
     uint256 public vEth; // starts at iVEth
 
+    uint256 public bonusLiquidity; // e.g. 50% of antifud fee funds, added at migration
+
     // State
     uint256 public sold; // total tokens sold to users via curve
     bool public migrated; // when true, trading disabled
@@ -158,18 +160,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         sold += tokensOut;
 
         // interactions
-        CurveToken(token).mint(msg.sender, tokensOut);
-
-        // send protocol fee & curve fee to treasury (can be split differently)
-        // if (feeEth + protoEth > 0)
-        //     payable(treasury).safeTransferETH(feeEth + protoEth);
-
-        if (feeEth + protoEth > 0) {
-            (bool sent, ) = payable(treasury).call{value: feeEth + protoEth}(
-                ""
-            );
-            require(sent, "ETH transfer failed");
-        }
+        CurveToken(token).safeTransfer(msg.sender, tokensOut);
 
         // check migration
         if (sold >= allocationA) {
@@ -220,7 +211,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         emit Sold(msg.sender, tokensIn, ethOut);
     }
 
-    function getTokensOut(
+    function swapQuote(
         uint256 ethIn,
         bool isBuying
     ) public view returns (uint256 tokensOut) {
@@ -233,10 +224,34 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
             uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
             // bonding curve math: tokensOut = vToken - k / (vEth + ethInEff)
-            uint256 k = vToken * vEth;
-            uint256 newVEth = vEth + ethInEff;
-            tokensOut = vToken - (k / newVEth);
-        } else {}
+            return tokensOut = _getTokensOut(ethInEff);
+        } else {
+            //selling
+            uint256 ethOut = _getEthOut(ethIn);
+
+            uint256 protoEth = (ethOut * factory.platformFeeBps()) / 10_000;
+            uint256 antifudEth = (ethOut * factory.antiFudPercentage()) /
+                10_000;
+            uint256 ethOutEff = ethOut - protoEth - antifudEth;
+
+            return ethOutEff;
+        }
+    }
+
+    function _getTokensOut(
+        uint256 ethInEff
+    ) internal view returns (uint256 tokensOut) {
+        uint256 k = vToken * vEth;
+        uint256 newVEth = vEth + ethInEff;
+        tokensOut = vToken - (k / newVEth);
+    }
+
+    function _getEthOut(
+        uint256 tokensIn
+    ) internal view returns (uint256 ethOut) {
+        uint256 k = vToken * vEth;
+        uint256 newVToken = vToken + tokensIn;
+        ethOut = vEth - (k / newVToken);
     }
 
     // -------- Migration --------
