@@ -83,7 +83,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     // -------- BUY --------
 
     receive() external payable {
-        buy(0); // minTokensOut = 0
+        buy(0, referrerAddress); // minTokensOut = 0
     }
 
     function buy(
@@ -94,9 +94,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         if (ethIn == 0) revert ZeroAmount();
 
         // fees
-        uint256 feeEth = (ethIn * tradeFeeBps) / 10_000;
-        uint256 protoEth = (ethIn * protocolFeeBps) / 10_000;
-        uint256 ethInEff = ethIn - feeEth - protoEth;
+        uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
+        uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
+        uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
         // compute tokensOut = vToken - k / (vEth + ethInEff)
         uint256 k = vToken * vEth;
@@ -172,6 +172,24 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(sent, "ETH transfer failed");
 
         emit Sold(msg.sender, tokensIn, ethOut);
+    }
+
+    function getTokensOut(
+        uint256 ethIn
+    ) public view returns (uint256 tokensOut) {
+        if (ethIn == 0) return 0;
+
+        // get fees from factory
+        uint256 refFeeEth = (ethIn * IFactory(factory).referralFeeBps()) /
+            10_000;
+        uint256 protoEth = (ethIn * IFactory(factory).platformFeeBps()) /
+            10_000;
+        uint256 ethInEff = ethIn - refFeeEth - protoEth;
+
+        // bonding curve math: tokensOut = vToken - k / (vEth + ethInEff)
+        uint256 k = vToken * vEth;
+        uint256 newVEth = vEth + ethInEff;
+        tokensOut = vToken - (k / newVEth);
     }
 
     // -------- Migration --------
