@@ -161,7 +161,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         CurveToken(token).transfer(msg.sender, tokensOut);
 
         // check migration
-        if (sold >= allocationA) {
+        if (rEth >= curveLimit) {
             _migrate(); // or leave callable separately
         }
 
