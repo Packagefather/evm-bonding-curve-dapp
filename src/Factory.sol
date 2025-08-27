@@ -21,6 +21,13 @@ contract CurveFactory is Ownable(msg.sender) {
     uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
 
+    //Token details
+    uint8 public constant decimals = 18;
+    uint256 public constant totalSupply = 1_000_000_000e18;
+
+    // Pool details
+    uint256 public vETH = 2.5e18; // initial virtual ETH, e.g., 2.5e18 wei (2.5 ETH)
+
     mapping(address => bool) public tokenUsed;
 
     event ImplementationUpdated(address indexed newImpl);
@@ -28,8 +35,6 @@ contract CurveFactory is Ownable(msg.sender) {
         address indexed curve,
         address indexed token,
         address indexed creator,
-        uint256 iVToken,
-        uint256 iVEth,
         uint256 totalSupply,
         uint256 allocationA,
         uint256 migrationMcapEth
@@ -71,11 +76,11 @@ contract CurveFactory is Ownable(msg.sender) {
     struct CreateParams {
         string name;
         string symbol;
-        uint8 decimals; // usually 18
-        uint256 totalSupply; // e.g., 1e9 * 1e18
-        uint256 iVToken; // 1.06e27 minimal units
-        uint256 iVEth; // 1.6e18 wei
-        uint256 allocationA; // 80% of totalSupply
+        //uint8 decimals; // usually 18
+        //uint256 totalSupply; // e.g., 1e9 * 1e18
+        //uint256 iVToken; // 1.06e27 minimal units
+        //uint256 iVEth; // 1.6e18 wei
+        uint256 allocationPercent; // 80% of totalSupply
         uint256 migrationMcapEth; // FDV at A, e.g., 25e18
         uint256 minHoldingForReferrer;
         //address creator; I am using msg.sender here
@@ -86,7 +91,7 @@ contract CurveFactory is Ownable(msg.sender) {
     ) external returns (address curve, address token) {
         // 1) Deploy token
         token = address(
-            new CurveToken(p.name, p.symbol, p.decimals, address(this))
+            new CurveToken(p.name, p.symbol, decimals, address(this))
         );
 
         // Mark token as used BEFORE initializing the clone
@@ -97,16 +102,16 @@ contract CurveFactory is Ownable(msg.sender) {
         curve = Clones.clone(curveImpl);
         BondingCurve(payable(curve)).initialize(
             token,
-            p.iVToken,
-            p.iVEth,
-            p.allocationA,
+            //p.iVToken,
+            vETH,
+            p.allocationPercent,
             p.migrationMcapEth,
             msg.sender, // this is the creator
             p.minHoldingForReferrer
         );
 
         // Mint full allocation to the bonding curve
-        CurveToken(token).mint(curve, p.totalSupply);
+        CurveToken(token).mint(curve, totalSupply);
 
         // Renounce ownership so no one can mint more tokens
         CurveToken(token).renounceOwnership();
@@ -117,7 +122,7 @@ contract CurveFactory is Ownable(msg.sender) {
             p.creator,
             p.iVToken,
             p.iVEth,
-            p.totalSupply,
+            totalSupply,
             p.allocationA,
             p.migrationMcapEth
         );
@@ -180,5 +185,10 @@ contract CurveFactory is Ownable(msg.sender) {
     function setSuperAdmin(address _superAdmin) external onlyOwner {
         superAdmin = _superAdmin;
         emit superAdminUpdated(_superAdmin);
+    }
+
+    function setVirtualETH(uint256 _vETH) external onlyOwner {
+        require(_vETH > 0, "vETH must be > 0");
+        vETH = _vETH;
     }
 }

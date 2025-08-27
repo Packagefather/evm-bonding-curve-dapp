@@ -32,4 +32,8 @@ interface IFactory {
     function maxCurveLimit() external view returns (uint256);
 
     function minCurveLimit() external view returns (uint256);
+
+    function totalSupply() external view returns (uint256);
+
+    function virtualETH() external view returns (uint256);
 }

@@ -25,27 +25,34 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     uint256 public curveLimit; // FDV at A (for sanity checks)
     uint256 public minHoldingForReferrer; // min tokens a referrer must hold to get referral fees
 
-    // Virtual reserves (18 decimals assumed)
+    //Immutatble state
     uint256 public vToken; // starts at iVToken
-    uint256 public vEth; // starts at iVEth
-    uint256 public rToken; // real token reserve (if any)
-    uint256 public rEth; // real ETH reserve (if any)
+    uint256 public vETH; // starts at ivETH
+    uint256 public k;
+    uint256 public raisedETH; // total ETH raised so far (wei)
+    uint256 public tokensSold; // tokens sold via bonding curve (18 decimals)
+    uint256 public totalSupply; // e.g. 1_000_000_000e18
+    bool public migrationTriggered;
+
+    // tokens allocated to bonding curve (80% of totalSupply)
+    // curve constant
 
     uint256 public bonusLiquidity; // e.g. 50% of antifud fee funds, added at migration
 
-    // State
-    uint256 public sold; // total tokens sold to users via curve
-    bool public migrated; // when true, trading disabled
+    // Mutable state
+    //uint256 public sold; // total tokens sold to users via curve
+    //bool public migrated; // when true, trading disabled
 
     event Bought(address indexed buyer, uint256 ethIn, uint256 tokensOut);
     event Sold(address indexed seller, uint256 tokensIn, uint256 ethOut);
-    event Migrated(
-        address indexed to,
-        uint256 tokensMigrated,
-        uint256 ethMigrated
-    );
+    // event Migrated(
+    //     address indexed to,
+    //     uint256 tokensMigrated,
+    //     uint256 ethMigrated
+    // );
     event Initialized(address indexed token, address indexed launcher);
     event ReferralBonusAwarded(address indexed referrer, uint256 amount);
+    event MigrationTriggered(uint256 raisedETH, uint256 tokensSold);
 
     error TradingStopped();
     error ZeroAmount();
@@ -58,13 +65,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     function initialize(
         address _token,
-        uint256 _iVToken,
-        uint256 _iVEth,
-        uint256 _allocationA,
+        //uint256 _iVToken,
+        uint256 _allocationPercent,
         uint256 _curveLimit,
-        //address factoryAddress,
-        //address _treasury,
-        //uint96 _protocolFeeBps,
         address _creator,
         uint256 _minHoldingForReferrer
     ) external {
@@ -77,18 +80,53 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         factory = IFactory(msg.sender);
         // Check with the factory if this token is already used
         require(!factory.tokenUsed(_token), "Token already in use");
-        //require(_allocationA > 0, "allocationA=0");
+        require(
+            _allocationPercent > 0 && _allocationPercent <= 100_000,
+            "Allocation % invalid"
+        );
 
         token = _token;
-        vToken = _iVToken;
-        vEth = _iVEth;
-        allocationA = _allocationA;
+        totalSupply = factory.totalSupply();
+        vETH = factory.virtualETH();
+        allocationA = _allocationPercent;
         curveLimit = _curveLimit;
         creator = _creator;
         minHoldingForReferrer = _minHoldingForReferrer;
+
+        vToken = (totalSupply * _allocationPercent) / 100_000;
+        k = (vToken * (vETH + curveLimit)) / 1e18;
+
+        raisedETH = 0;
+        tokensSold = 0;
+        migrationTriggered = false;
+
         initialized = true;
 
         emit Initialized(_token, address(this));
+    }
+
+    // ----------- Bonding Curve math -----------
+
+    // Current price p(x) = (vETH + x)^2 / k, scaled to 1e18 decimals
+    function currentPrice() public view returns (uint256) {
+        uint256 numerator = (vETH + raisedETH) * (vETH + raisedETH);
+        return (numerator * 1e18) / k;
+    }
+
+    // tokens sold at given ETH raised x: T(x) = vToken - k / (vETH + x)
+    function tokensSoldAt(uint256 x) public view returns (uint256) {
+        require(vETH + x > 0, "Denominator zero");
+        uint256 denominator = vETH + x;
+        uint256 division = (k * 1e18) / denominator;
+        return vToken > division ? vToken - division : 0;
+    }
+
+    // Tokens to mint for ethAmount invested
+    function tokensForETH(uint256 ethAmount) public view returns (uint256) {
+        uint256 afterTokens = tokensSoldAt(raisedETH + ethAmount);
+        uint256 beforeTokens = tokensSoldAt(raisedETH);
+        require(afterTokens >= beforeTokens, "Math underflow");
+        return afterTokens - beforeTokens;
     }
 
     // -------- BUY --------
@@ -150,7 +188,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         (bool sentC, ) = payable(factory.treasury()).call{value: protoEth}("");
         require(sentC, "BNB transfer failed");
 
-        // compute tokensOut = vToken - k / (vEth + ethInEff)
+        // compute tokensOut = vToken - k / (vETH + ethInEff)
         uint256 tokensOut = calculateTokensOut(ethInEff);
 
         require(tokensOut >= minTokensOut, "slippage too high");
@@ -186,16 +224,16 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 protoTokens = (tokensIn * protocolFeeBps) / 10_000;
         uint256 tokensEff = tokensIn - feeTokens - protoTokens;
 
-        uint256 k = vToken * vEth;
+        uint256 k = vToken * vETH;
         uint256 newVToken = vToken + tokensEff;
-        uint256 ethOut = vEth - (k / newVToken);
+        uint256 ethOut = vETH - (k / newVToken);
 
         require(ethOut >= minEthOut, "slippage too high");
         require(address(this).balance >= ethOut, "insufficient ETH");
 
         // effects
         vToken = newVToken;
-        vEth = vEth - ethOut;
+        vETH = vETH - ethOut;
 
         // send fees (if token-side fees are kept, mint to treasury; we burned above, so you might just collect ETH fees)
         if (protoTokens + feeTokens > 0) {
@@ -222,7 +260,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
             uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
             uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
-            // bonding curve math: tokensOut = vToken - k / (vEth + ethInEff)
+            // bonding curve math: tokensOut = vToken - k / (vETH + ethInEff)
             return tokensOut = _getTokensOut(ethInEff);
         } else {
             //selling
@@ -240,41 +278,41 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     function _getTokensOut(
         uint256 ethInEff
     ) internal view returns (uint256 tokensOut) {
-        uint256 k = vToken * vEth;
-        uint256 newVEth = vEth + ethInEff;
-        tokensOut = vToken - (k / newVEth);
+        uint256 k = vToken * vETH;
+        uint256 newvETH = vETH + ethInEff;
+        tokensOut = vToken - (k / newvETH);
     }
 
     function _getEthOut(
         uint256 tokensIn
     ) internal view returns (uint256 ethOut) {
-        uint256 k = vToken * vEth;
+        uint256 k = vToken * vETH;
         uint256 newVToken = vToken + tokensIn;
-        ethOut = vEth - (k / newVToken);
+        ethOut = vETH - (k / newVToken);
     }
 
     function calculateTokensOut(
         uint256 amountIn,
         bool isBuying
     ) internal returns (uint256 amount_out) {
-        // uint256 k = vToken * vEth;
-        // uint256 newVEth = vEth + amountIn;
-        // tokensOut = vToken - (k / newVEth);
-        uint256 k = vToken * vEth;
+        // uint256 k = vToken * vETH;
+        // uint256 newvETH = vETH + amountIn;
+        // tokensOut = vToken - (k / newvETH);
+        uint256 k = vToken * vETH;
         //uint256 tokensOut;
         //uint256 ethOut;
         if (isBuying) {
             //we calculate fees before passing effETH in here
 
-            uint256 newVEth = vEth + amountIn;
-            amount_out = vToken - (k / newVEth);
+            uint256 newvETH = vETH + amountIn;
+            amount_out = vToken - (k / newvETH);
 
             //updating the virtual and real reserves
-            vEth = newVEth;
+            vETH = newvETH;
             vToken -= amount_out; // virtual token reserve decreases
             rEth += amountIn; // real ETH reserve increases
             rToken -= amount_out; // real token reserve decreases
-            //return (vToken, vEth, amount_out);
+            //return (vToken, vETH, amount_out);
             return amount_out;
         } else {
             // we claculate fee inside here
@@ -282,7 +320,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
             uint256 vTOKEN_new = vToken + amountIn;
             uint256 vETH_new = k / vTOKEN_new;
 
-            uint256 eth_out = vEth - vETH_new;
+            uint256 eth_out = vETH - vETH_new;
 
             //calculate the fees
             uint256 protoEth = (eth_out * factory.platformFeeBps()) / 10_000;
@@ -293,7 +331,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
             // updating the virtual and real reserves
             vToken = vTOKEN_new;
             rToken += amountIn; // real token reserve increases
-            vEth -= eth_out; // virtual ETH reserve decreases
+            vETH -= eth_out; // virtual ETH reserve decreases
             rEth -= eth_out; // real ETH reserve decreases
 
             //transfer fees accordingly
