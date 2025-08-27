@@ -7,7 +7,10 @@ import {BondingCurve} from "../src/BondingCurve.sol";
 import {CurveFactory} from "../src/Factory.sol";
 
 contract DeployBondingCurve is Script {
-    function deployBondingCurve() public returns (CurveFactory, BondingCurve) {
+    function deployFactoryAndBondingCurve()
+        public
+        returns (CurveFactory, BondingCurve)
+    {
         vm.startBroadcast();
         // 1. Deploy BondingCurve implementation
         BondingCurve bondingCurveImpl = new BondingCurve();
@@ -35,6 +38,6 @@ contract DeployBondingCurve is Script {
     }
 
     function run() external returns (CurveFactory, BondingCurve) {
-        return deployBondingCurve();
+        return deployFactoryAndBondingCurve();
     }
 }

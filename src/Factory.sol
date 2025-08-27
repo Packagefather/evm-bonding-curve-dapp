@@ -76,14 +76,9 @@ contract CurveFactory is Ownable(msg.sender) {
     struct CreateParams {
         string name;
         string symbol;
-        //uint8 decimals; // usually 18
-        //uint256 totalSupply; // e.g., 1e9 * 1e18
-        //uint256 iVToken; // 1.06e27 minimal units
-        //uint256 iVEth; // 1.6e18 wei
         uint256 allocationPercent; // 80% of totalSupply
         uint256 migrationMcapEth; // FDV at A, e.g., 25e18
         uint256 minHoldingForReferrer;
-        //address creator; I am using msg.sender here
     }
 
     function createCurve(
