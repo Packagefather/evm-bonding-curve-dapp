@@ -23,6 +23,8 @@ interface IFactory {
 
     function antiFudPercentage() external view returns (uint96); // e.g. 30% antifud
 
+    function protocolFeeBps() external view returns (uint96); // % of fee that goes to protocol
+
     function antifiludLauncherQuotaBps() external view returns (uint96); // % of antifud sent to launcher
 
     // --- Ownership ---
@@ -36,4 +38,6 @@ interface IFactory {
     function totalSupply() external view returns (uint256);
 
     function virtualETH() external view returns (uint256);
+
+    function tokenUsed(address token) external view returns (bool);
 }

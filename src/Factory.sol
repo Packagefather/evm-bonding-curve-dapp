@@ -103,7 +103,7 @@ contract CurveFactory is Ownable(msg.sender) {
         BondingCurve(payable(curve)).initialize(
             token,
             //p.iVToken,
-            vETH,
+            //vETH,
             p.allocationPercent,
             p.migrationMcapEth,
             msg.sender, // this is the creator
@@ -119,19 +119,27 @@ contract CurveFactory is Ownable(msg.sender) {
         emit CurveCreated(
             curve,
             token,
-            p.creator,
-            p.iVToken,
-            p.iVEth,
+            msg.sender,
+            //p.iVToken,
+            //p.iVEth,
             totalSupply,
-            p.allocationA,
+            p.allocationPercent,
             p.migrationMcapEth
         );
     }
 
+    // event CurveCreated(
+    //         address indexed curve,
+    //         address indexed token,
+    //         address indexed creator,
+    //         uint256 totalSupply,
+    //         uint256 allocationA,
+    //         uint256 migrationMcapEth
+    //     );
     function setProtocolFeeBps(uint96 bps) external onlyOwner {
         require(bps <= 10_000, "fee>100%");
         protocolFeeBps = bps;
-        emit ProtocolFeeUpdated(_fee);
+        emit ProtocolFeeUpdated(bps);
     }
 
     function setReferalFeeBps(uint96 bps) external onlyOwner {
