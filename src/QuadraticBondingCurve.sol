@@ -142,14 +142,20 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         address _referrer
     ) public payable nonReentrant whenNotPaused {
         require(_referrer != msg.sender, "you cannot refer yourself");
-        if (migrated) revert TradingStopped();
-        uint256 ethIn = msg.value;
-        if (ethIn == 0) revert ZeroAmount();
+        if (migrationTriggered) revert TradingStopped();
+
+        uint256 incomingETH = msg.value;
+        if (msg.value == 0) revert ZeroAmount();
+
+        uint256 tokensToBuy = tokensForETH(incomingETH);
+        require(tokensToBuy > 0, "Insufficient ETH for tokens");
+        require(tokensSold + tokensToBuy <= vToken, "Exceeds allocation");
+
 
         // fees
-        uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
-        uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
-        uint256 ethInEff = ethIn - refFeeEth - protoEth;
+        uint256 refFeeEth = (incomingETH * factory.referralFeeBps()) / 10_000;
+        uint256 protoEth = (incomingETH * factory.platformFeeBps()) / 10_000;
+        uint256 ethInEff = incomingETH - refFeeEth - protoEth;
 
         // ===== VALIDATE AND REWARD REFERRER =====
         if (_referrer != address(0)) {
@@ -189,7 +195,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(sentC, "BNB transfer failed");
 
         // compute tokensOut = vToken - k / (vETH + ethInEff)
-        uint256 tokensOut = calculateTokensOut(ethInEff);
+        uint256 tokensOut = tokensToBuy//calculateTokensOut(ethInEff);
 
         require(tokensOut >= minTokensOut, "slippage too high");
         require(sold + tokensOut <= allocationA, "exceeds allocationA");
