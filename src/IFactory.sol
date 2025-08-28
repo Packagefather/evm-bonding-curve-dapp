@@ -31,9 +31,9 @@ interface IFactory {
     function owner() external view returns (address);
 
     // --- Curve Limits ---
-    function maxCurveLimit() external view returns (uint256);
+    function maxCurveLimitEth() external view returns (uint256);
 
-    function minCurveLimit() external view returns (uint256);
+    function minCurveLimitEth() external view returns (uint256);
 
     function totalSupply() external view returns (uint256);
 

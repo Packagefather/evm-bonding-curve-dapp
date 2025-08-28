@@ -6,7 +6,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {BondingCurve} from "../src/BondingCurve.sol";
 import {CurveFactory} from "../src/Factory.sol";
 
-contract DeployBondingCurve is Script {
+contract ContractsDeployment is Script {
     function deployFactoryAndBondingCurve()
         public
         returns (CurveFactory, BondingCurve)
@@ -25,13 +25,16 @@ contract DeployBondingCurve is Script {
             treasury: msg.sender, // or your treasury address
             migrationFeeWallet: msg.sender, // or another wallet
             minCurveLimitEth: 1 ether, // minimum curve limit
-            maxCurveLimitEth: 5 ether // maximum curve limit
+            maxCurveLimitEth: 50 ether // maximum curve limit
         });
 
         CurveFactory factory = new CurveFactory(config);
 
-        console.log("BondingCurve Implementation:", address(bondingCurveImpl));
-        console.log("Factory:", address(factory));
+        console.log(
+            "BondingCurve Implementation within deployment script:",
+            address(bondingCurveImpl)
+        );
+        console.log("Factory within deployment script:", address(factory));
 
         vm.stopBroadcast();
         return (factory, bondingCurveImpl);

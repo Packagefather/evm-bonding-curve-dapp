@@ -13,15 +13,22 @@ contract LaunchToken is Script {
             name: "MyToken",
             symbol: "MTK",
             allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
-            migrationMcapEth: 25 ether, // 25 ETH as full FDV
+            migrationMcapEth: 10 ether, // 25 ETH as full FDV
             minHoldingForReferrer: 1e18 // Minimum holding to refer (1 token)
         });
 
-    function initializeCurve(address mostRecentlyDeployed) public {
+    function initializeCurve(
+        address mostRecentlyDeployed
+    ) public returns (address curve, address token) {
         vm.startBroadcast();
-        CurveFactory((mostRecentlyDeployed)).createCurve(params);
+        (curve, token) = CurveFactory((mostRecentlyDeployed)).createCurve(
+            params
+        );
+        console.log("Deployed Curve at:", curve);
+        console.log("Deployed Token at:", token);
+
         vm.stopBroadcast();
-        console.log("Funded FundMe with %s", SEND_VALUE);
+        //console.log("Funded FundMe with %s", SEND_VALUE);
     }
 
     function run() external {

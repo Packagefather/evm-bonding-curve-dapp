@@ -74,10 +74,11 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(!initialized, "Already initialized");
         require(token == address(0), "init once");
         require(_token != address(0), "zero token");
-        require(_curveLimit >= factory.minCurveLimit(), "limit too low");
-        require(_curveLimit <= factory.maxCurveLimit(), "limit too high");
 
         factory = IFactory(msg.sender);
+
+        require(_curveLimit >= factory.minCurveLimitEth(), "limit too low");
+        require(_curveLimit <= factory.maxCurveLimitEth(), "limit too high");
         // Check with the factory if this token is already used
         require(!factory.tokenUsed(_token), "Token already in use");
         require(
@@ -445,7 +446,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     }
 
     function getLimits() public view returns (uint256 min, uint256 max) {
-        min = factory.minCurveLimit();
-        max = factory.maxCurveLimit();
+        min = factory.minCurveLimitEth();
+        max = factory.maxCurveLimitEth();
     }
 }

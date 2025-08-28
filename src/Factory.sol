@@ -91,7 +91,6 @@ contract CurveFactory is Ownable(msg.sender) {
 
         // Mark token as used BEFORE initializing the clone
         require(!tokenUsed[token], "Token already used");
-        tokenUsed[token] = true;
 
         // 2) Clone curve & init
         curve = Clones.clone(curveImpl);
@@ -105,6 +104,7 @@ contract CurveFactory is Ownable(msg.sender) {
             p.minHoldingForReferrer
         );
 
+        tokenUsed[token] = true;
         // Mint full allocation to the bonding curve
         CurveToken(token).mint(curve, totalSupply);
 
@@ -193,5 +193,9 @@ contract CurveFactory is Ownable(msg.sender) {
     function setVirtualETH(uint256 _vETH) external onlyOwner {
         require(_vETH > 0, "vETH must be > 0");
         vETH = _vETH;
+    }
+
+    function virtualETH() external view returns (uint256) {
+        return vETH;
     }
 }
