@@ -57,6 +57,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     error TradingStopped();
     error ZeroAmount();
     error Slippage();
+    error vTokensExceeded();
 
     // constructor() {
     //     //treasury = _treasury;
@@ -252,46 +253,29 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     }
 
     // -------- SELL --------
-    /*
+
     function sell(
-        uint256 tokensIn,
+        uint256 tokensToSell,
         uint256 minEthOut
     ) external nonReentrant whenNotPaused {
-        if (migrated) revert TradingStopped();
-        if (tokensIn == 0) revert ZeroAmount();
+        if (migrationTriggered) revert TradingStopped();
+        if (tokensToSell == 0) revert ZeroAmount();
 
-        // receive tokens (curve burns them)
-        CurveToken(token).burn(msg.sender, tokensIn);
+        // Ensure user has enough tokens
+        require(
+            CurveToken(token).balanceOf(msg.sender) >= tokensToSell,
+            "Insufficient token balance"
+        );
 
-        // fees on token side (optional), or apply fee on ETH out
-        uint256 feeTokens = (tokensIn * tradeFeeBps) / 10_000;
-        uint256 protoTokens = (tokensIn * protocolFeeBps) / 10_000;
-        uint256 tokensEff = tokensIn - feeTokens - protoTokens;
+        uint256 newTokensSold = tokensSold - tokensToSell;
+        if (newTokensSold > vToken) revert vTokensExceeded(); // sanity check -  what is remaining if we subtract what the user wants to sell shouldnt be greater than vToken
 
-        uint256 k = vToken * vETH;
-        uint256 newVToken = vToken + tokensEff;
-        uint256 ethOut = vETH - (k / newVToken);
-
-        require(ethOut >= minEthOut, "slippage too high");
-        require(address(this).balance >= ethOut, "insufficient ETH");
-
-        // effects
-        vToken = newVToken;
-        vETH = vETH - ethOut;
-
-        // send fees (if token-side fees are kept, mint to treasury; we burned above, so you might just collect ETH fees)
-        if (protoTokens + feeTokens > 0) {
-            CurveToken(token).mint(treasury, protoTokens + feeTokens);
-        }
-
-        // interactions
-        //payable(msg.sender).safeTransferETH(ethOut);
-        (bool sent, ) = payable(msg.sender).call{value: ethOut}("");
-        require(sent, "ETH transfer failed");
+        uint256 denominator = vToken - newTokensSold;
+        require(denominator > 0, "Denominator zero");
 
         emit Sold(msg.sender, tokensIn, ethOut);
     }
-*/
+
     /*
     function swapQuote(
         uint256 ethIn,
