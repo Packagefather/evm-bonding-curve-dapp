@@ -40,4 +40,6 @@ interface IFactory {
     function virtualETH() external view returns (uint256);
 
     function tokenUsed(address token) external view returns (bool);
+
+    function fixedAllocationPercent() external view returns (uint256);
 }

@@ -20,13 +20,14 @@ contract CurveFactory is Ownable(msg.sender) {
     uint96 public antifiludLauncherQuotaBps;
     uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
+    uint256 public fixedAllocationPercent; // % of total supply allocated to bonding curve, e.g., 80% = 80000 bps
 
     //Token details
     uint8 public constant decimals = 18;
     uint256 public constant totalSupply = 1_000_000_000e18;
 
     // Pool details
-    uint256 public vETH = 2.5e18; // initial virtual ETH, e.g., 2.5e18 wei (2.5 ETH)
+    //uint256 public vETH = 2.5e18; // initial virtual ETH, e.g., 2.5e18 wei (2.5 ETH)
 
     mapping(address => bool) public tokenUsed;
 
@@ -36,7 +37,6 @@ contract CurveFactory is Ownable(msg.sender) {
         address indexed token,
         address indexed creator,
         uint256 totalSupply,
-        uint256 allocationA,
         uint256 migrationMcapEth
     );
     event TreasuryUpdated(address indexed newTreasury);
@@ -59,6 +59,7 @@ contract CurveFactory is Ownable(msg.sender) {
         maxCurveLimitEth = p.maxCurveLimitEth;
         minCurveLimitEth = p.minCurveLimitEth;
         treasury = p.treasury;
+        fixedAllocationPercent = p.fixedAllocationPercent;
     }
 
     struct ConfigParams {
@@ -71,12 +72,12 @@ contract CurveFactory is Ownable(msg.sender) {
         address migrationFeeWallet;
         uint256 minCurveLimitEth;
         uint256 maxCurveLimitEth;
+        uin256 fixedAllocationPercent;
     }
 
     struct CreateParams {
         string name;
         string symbol;
-        uint256 allocationPercent; // 80% of totalSupply
         uint256 migrationMcapEth; // FDV at A, e.g., 25e18
         uint256 minHoldingForReferrer;
     }
@@ -96,9 +97,6 @@ contract CurveFactory is Ownable(msg.sender) {
         curve = Clones.clone(curveImpl);
         BondingCurve(payable(curve)).initialize(
             token,
-            //p.iVToken,
-            //vETH,
-            p.allocationPercent,
             p.migrationMcapEth,
             msg.sender, // this is the creator
             p.minHoldingForReferrer
@@ -115,22 +113,12 @@ contract CurveFactory is Ownable(msg.sender) {
             curve,
             token,
             msg.sender,
-            //p.iVToken,
-            //p.iVEth,
             totalSupply,
-            p.allocationPercent,
             p.migrationMcapEth
         );
     }
 
-    // event CurveCreated(
-    //         address indexed curve,
-    //         address indexed token,
-    //         address indexed creator,
-    //         uint256 totalSupply,
-    //         uint256 allocationA,
-    //         uint256 migrationMcapEth
-    //     );
+    // --- ADMIN ---
     function setProtocolFeeBps(uint96 bps) external onlyOwner {
         require(bps <= 10_000, "fee>100%");
         protocolFeeBps = bps;

@@ -66,8 +66,6 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     function initialize(
         address _token,
-        //uint256 _iVToken,
-        uint256 _allocationPercent,
         uint256 _curveLimit,
         address _creator,
         uint256 _minHoldingForReferrer
@@ -82,21 +80,18 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(_curveLimit <= factory.maxCurveLimitEth(), "limit too high");
         // Check with the factory if this token is already used
         require(!factory.tokenUsed(_token), "Token already in use");
-        require(
-            _allocationPercent > 0 && _allocationPercent <= 100_000,
-            "Allocation % invalid"
-        );
 
         token = _token;
         totalSupply = factory.totalSupply();
-        vETH = factory.virtualETH();
-        allocationA = _allocationPercent;
-        curveLimit = _curveLimit;
+        curveLimit = _curveLimit; // curveLimit set by user, in ETH (or SOL)
+        vETH = curveLimit / 4; // Calculate initial virtual ETH reserve (vETH) based on curveLimit
+        allocationA = factory.fixedAllocationPercent();
+
         creator = _creator;
         minHoldingForReferrer = _minHoldingForReferrer;
 
-        vToken = (totalSupply * _allocationPercent) / 100_000;
-        k = (vToken * (vETH + curveLimit)) / 1e18;
+        vToken = (totalSupply * allocationA) / 100_000;
+        k = vETH * vToken; // Calculate constant k = vETH * vToken
 
         raisedETH = 0;
         tokensSold = 0;
@@ -108,30 +103,6 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     }
 
     // ----------- Bonding Curve math -----------
-
-    // Current price p(x) = (vETH + x)^2 / k, scaled to 1e18 decimals
-    function currentPrice() public view returns (uint256) {
-        uint256 numerator = (vETH + raisedETH) * (vETH + raisedETH);
-        return (numerator * 1e18) / k;
-    }
-
-    // tokens sold at given ETH raised x: T(x) = vToken - k / (vETH + x)
-    function tokensSoldAt(uint256 x) public view returns (uint256) {
-        require(vETH + x > 0, "Denominator zero");
-        uint256 denominator = vETH + x;
-        uint256 division = (k * 1e18) / denominator;
-        return vToken > division ? vToken - division : 0;
-    }
-
-    // Tokens to mint for ethAmount invested
-    function tokensForETH(uint256 ethAmount) public view returns (uint256) {
-        uint256 afterTokens = tokensSoldAt(raisedETH + ethAmount);
-        uint256 beforeTokens = tokensSoldAt(raisedETH);
-        require(afterTokens >= beforeTokens, "Math underflow");
-        return afterTokens - beforeTokens;
-    }
-
-    // -------- BUY --------
 
     receive() external payable {
         //buy(0, referrerAddress); // minTokensOut = 0
@@ -194,62 +165,75 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         (bool sentC, ) = payable(factory.treasury()).call{value: protoEth}("");
         require(sentC, "BNB transfer failed");
 
-        uint256 tokensToBuy = tokensForETH(ethInEff);
+        // Bonding curve maths starts here
 
-        // Lets check if user is to buy what will exceed the curve limit
+        // New total ETH raised if this purchase goes through
+        uint256 newRaisedETH = raisedETH + ethInEff;
+
+        // Calculate tokens sold at newRaisedETH (using bonding curve)
+        // Calculate how many tokens would be sold at this new point
+        uint256 tokensAfter = tokensSoldAt(newRaisedETH);
+        uint256 tokensBefore = tokensSoldAt(raisedETH);
+
+        uint256 tokensToBuy = tokensAfter - tokensBefore;
+
+        // If it exceeds what's left, cap it and recalculate ETH needed
         uint256 tokensAvailable = vToken - tokensSold;
-        uint256 ethToAccept = msg.value;
 
         if (tokensToBuy > tokensAvailable) {
             tokensToBuy = tokensAvailable;
 
-            // Calculate ETH needed to buy remaining tokensAvailable
-            uint256 newTokensSold = tokensSold + tokensAvailable;
+            // Compute the ETH needed to buy exactly these remaining tokens
+            uint256 newTokensSold = tokensSold + tokensToBuy;
+            uint256 denominator = vToken - newTokensSold; // y = vToken - tokensSold
 
-            uint256 denominator = vToken - newTokensSold;
             require(denominator > 0, "Denominator zero");
 
-            // careful with scaling, example:
-            //uint256 ethAfter = ((k * 1e18) / (vToken - newTokensSold));
-            uint256 ethTarget = (k * 1e18) / denominator; // scaled
-            require(ethTarget >= vETH * 1e18, "vETH error");
+            uint256 ethTarget = (k * 1e18) / denominator;
+            require(ethTarget >= vETH * 1e18, "Invalid curve state");
 
-            uint256 newRaisedETH = ethTarget - (vETH * 1e18); // still scaled
-            newRaisedETH = newRaisedETH / 1e18; // unscale
+            uint256 requiredRaisedETH = (ethTarget - (vETH * 1e18)) / 1e18; // Unscale
 
-            ethToAccept = newRaisedETH - raisedETH;
+            uint256 ethToAccept = requiredRaisedETH - raisedETH;
 
-            //uint256 deltaETH = ethAfter - raisedETH;
-
+            // Cap ethToAccept to msg.value just in case
             if (ethToAccept > msg.value) {
-                ethToAccept = msg.value; // safety
+                ethToAccept = msg.value;
             }
 
-            // ethToAccept = deltaETH;
+            // Refund excess
+            uint256 refund = msg.value - ethToAccept;
+            if (refund > 0) {
+                payable(msg.sender).transfer(refund);
+            }
+
+            // Update state with adjusted ETH and tokens
+            raisedETH += ethToAccept;
+            tokensSold += tokensToBuy;
+
+            // Transfer tokens
+            bool sent = CurveToken(token).transfer(msg.sender, tokensToBuy);
+            require(sent, "Token transfer failed");
+
+            if (tokensSold >= vToken || raisedETH >= curveLimit) {
+                migrationTriggered = true;
+                emit MigrationTriggered(raisedETH, tokensSold);
+            }
+
+            emit Bought(msg.sender, ethToAccept, tokensToBuy);
         }
 
-        // we have it here so it can check for that edge case above,
-        //where user tries to buy more than available
         require(tokensToBuy >= minTokensOut, "slippage too high");
+    }
 
-        // Update state
-        raisedETH += ethToAccept;
-        tokensSold += tokensToBuy;
+    function tokensSoldAt(uint256 x) public view returns (uint256) {
+        require(vETH + x > 0, "Denominator zero");
 
-        // interactions
-        bool send = CurveToken(token).transfer(msg.sender, tokensToBuy);
-        require(send, "Token transfer failed");
-        emit Bought(msg.sender, ethToAccept, tokensToBuy);
+        uint256 denominator = vETH + x; // (x0 + current ETH raised)
+        uint256 division = (k * 1e18) / denominator; // scale for precision
 
-        // Refund extra ETH if any
-        if (msg.value > ethToAccept) {
-            payable(msg.sender).transfer(msg.value - ethToAccept);
-        }
-
-        if (tokensSold >= vToken || raisedETH >= curveLimit) {
-            migrationTriggered = true;
-            emit MigrationTriggered(raisedETH, tokensSold);
-        }
+        // tokens sold = vToken - k / (vETH + x)
+        return vToken > division ? vToken - division : 0;
     }
 
     // -------- SELL --------
@@ -258,22 +242,50 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 tokensToSell,
         uint256 minEthOut
     ) external nonReentrant whenNotPaused {
-        if (migrationTriggered) revert TradingStopped();
         if (tokensToSell == 0) revert ZeroAmount();
+        require(tokensSold >= tokensToSell, "Not enough tokens sold");
 
-        // Ensure user has enough tokens
-        require(
-            CurveToken(token).balanceOf(msg.sender) >= tokensToSell,
-            "Insufficient token balance"
+        uint256 tokensSoldBefore = tokensSold;
+        uint256 tokensSoldAfter = tokensSoldBefore - tokensToSell;
+
+        // Avoid division by zero
+        require(vToken > tokensSoldAfter, "Invalid tokens sold after");
+
+        // ETH before sale
+        uint256 ethBefore = (k * 1e18) / (vToken - tokensSoldBefore); // scaled
+        require(ethBefore >= vETH * 1e18, "Invalid curve");
+
+        ethBefore = ethBefore - (vETH * 1e18); // still scaled
+        ethBefore = ethBefore / 1e18;
+
+        // ETH after sale
+        uint256 ethAfter = (k * 1e18) / (vToken - tokensSoldAfter); // scaled
+        require(ethAfter >= vETH * 1e18, "Invalid curve");
+
+        ethAfter = ethAfter - (vETH * 1e18); // still scaled
+        ethAfter = ethAfter / 1e18;
+
+        // ETH to return = before - after
+        uint256 ethToReturn = ethBefore - ethAfter;
+
+        require(ethToReturn >= minEthOut, "Slippage too high");
+
+        // Effects
+        tokensSold = tokensSoldAfter;
+        raisedETH -= ethToReturn;
+
+        // Interactions
+        bool received = CurveToken(token).transferFrom(
+            msg.sender,
+            address(this),
+            tokensToSell
         );
+        require(received, "Token transfer failed");
 
-        uint256 newTokensSold = tokensSold - tokensToSell;
-        if (newTokensSold > vToken) revert vTokensExceeded(); // sanity check -  what is remaining if we subtract what the user wants to sell shouldnt be greater than vToken
+        // calculate the fees and send the right amount to the user
+        payable(msg.sender).transfer(ethToReturn);
 
-        uint256 denominator = vToken - newTokensSold;
-        require(denominator > 0, "Denominator zero");
-
-        emit Sold(msg.sender, tokensIn, ethOut);
+        emit Sold(msg.sender, ethToReturn, tokensToSell);
     }
 
     /*
