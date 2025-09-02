@@ -244,6 +244,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     ) external nonReentrant whenNotPaused {
         if (tokensToSell == 0) revert ZeroAmount();
         require(tokensSold >= tokensToSell, "Not enough tokens sold");
+        if (migrationTriggered) revert TradingStopped();
 
         uint256 tokensSoldBefore = tokensSold;
         uint256 tokensSoldAfter = tokensSoldBefore - tokensToSell;
@@ -283,119 +284,90 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(received, "Token transfer failed");
 
         // calculate the fees and send the right amount to the user
-        payable(msg.sender).transfer(ethToReturn);
+        // fees
+        uint256 antifiludFeeEth = (ethToReturn * factory.antifiludFeeBps()) /
+            10_000;
+        uint256 protoEth = (ethToReturn * factory.platformFeeBps()) / 10_000;
+        uint256 ethInEff = ethToReturn - antifiludFeeEth - protoEth;
+
+        uint256 antifudToLauncher = (antifiludFeeEth *
+            factory.antifiludLauncherQuotaBps()) / 10_000;
+
+        uint256 antifudToCurve = antifiludFeeEth - antifudToLauncher;
+        bonusLiquidity += antifudToCurve; // keep the antifud portion in the curve for liquidity boost at migration
+        creatorsRewards[creator] += antifudToLauncher; // save the portion for the creator
+
+        payable(msg.sender).transfer(ethInEff);
 
         emit Sold(msg.sender, ethToReturn, tokensToSell);
     }
 
-    /*
-    function swapQuote(
-        uint256 ethIn,
-        bool isBuying
-    ) public view returns (uint256 tokensOut) {
-        if (ethIn == 0) return 0;
+    function getTokensOut(
+        uint256 ethIn
+    ) external view returns (uint256 tokensOut) {
+        if (migrationTriggered) revert TradingStopped();
+        require(ethIn > 0, "Zero ETH in");
 
-        if (isBuying) {
-            // get fees from factory
-            uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
-            uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
-            uint256 ethInEff = ethIn - refFeeEth - protoEth;
+        // calculate the fees
+        uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
+        uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
+        uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
-            // bonding curve math: tokensOut = vToken - k / (vETH + ethInEff)
-            return tokensOut = _getTokensOut(ethInEff);
-        } else {
-            //selling
-            uint256 ethOut = _getEthOut(ethIn);
+        // Calculate new raisedETH after this buy
+        uint256 newRaised = raisedETH + ethInEff;
 
-            uint256 protoEth = (ethOut * factory.platformFeeBps()) / 10_000;
-            uint256 antifudEth = (ethOut * factory.antiFudPercentage()) /
-                10_000;
-            uint256 ethOutEff = ethOut - protoEth - antifudEth;
+        // Tokens before this buy
+        uint256 tokensBefore = vToken -
+            (k * 1e18) /
+            (vETH * 1e18 + raisedETH * 1e18);
 
-            return ethOutEff;
+        // Tokens after this buy
+        uint256 tokensAfter = vToken -
+            (k * 1e18) /
+            (vETH * 1e18 + newRaised * 1e18);
+
+        tokensOut = tokensAfter > tokensBefore ? tokensAfter - tokensBefore : 0;
+
+        // Clamp to remaining tokens (in case of nearing curve limit)
+        uint256 tokensAvailable = vToken - tokensSold;
+        if (tokensOut > tokensAvailable) {
+            tokensOut = tokensAvailable;
         }
     }
-*/
-    // function _getTokensOut(
-    //     uint256 ethInEff
-    // ) internal view returns (uint256 tokensOut) {
-    //     uint256 k = vToken * vETH;
-    //     uint256 newvETH = vETH + ethInEff;
-    //     tokensOut = vToken - (k / newvETH);
-    // }
 
-    // function _getEthOut(
-    //     uint256 tokensIn
-    // ) internal view returns (uint256 ethOut) {
-    //     uint256 k = vToken * vETH;
-    //     uint256 newVToken = vToken + tokensIn;
-    //     ethOut = vETH - (k / newVToken);
-    // }
+    function getMinEthOut(
+        uint256 tokensIn
+    ) external view returns (uint256 ethOut) {
+        require(tokensIn > 0, "Zero tokens in");
+        //require(!migrationTriggered, "Trading stopped");
+        require(tokensIn <= tokensSold, "Not enough tokens sold yet");
 
-    /*
-    function calculateTokensOut(
-        uint256 amountIn,
-        bool isBuying
-    ) internal returns (uint256 amount_out) {
-        // uint256 k = vToken * vETH;
-        // uint256 newvETH = vETH + amountIn;
-        // tokensOut = vToken - (k / newvETH);
-        uint256 k = vToken * vETH;
-        //uint256 tokensOut;
-        //uint256 ethOut;
-        if (isBuying) {
-            //we calculate fees before passing effETH in here
+        // tokensSold BEFORE selling
+        uint256 tokensBefore = tokensSold;
 
-            uint256 newvETH = vETH + amountIn;
-            amount_out = vToken - (k / newvETH);
+        // tokensSold AFTER selling (going backward on curve)
+        uint256 tokensAfter = tokensBefore - tokensIn;
 
-            //updating the virtual and real reserves
-            vETH = newvETH;
-            vToken -= amount_out; // virtual token reserve decreases
-            rEth += amountIn; // real ETH reserve increases
-            rToken -= amount_out; // real token reserve decreases
-            //return (vToken, vETH, amount_out);
-            return amount_out;
-        } else {
-            // we claculate fee inside here
+        // raisedETH BEFORE selling
+        uint256 ethBefore = raisedETH;
 
-            uint256 vTOKEN_new = vToken + amountIn;
-            uint256 vETH_new = k / vTOKEN_new;
+        // ETH raised if tokensAfter was the sold amount (solve for ETH where y = vToken - tokensAfter)
+        uint256 denominatorAfter = vToken - tokensAfter;
+        require(denominatorAfter > 0, "Invalid denominator");
 
-            uint256 eth_out = vETH - vETH_new;
+        uint256 ethTarget = (k * 1e18) / denominatorAfter;
+        require(ethTarget >= vETH * 1e18, "Invalid curve state");
 
-            //calculate the fees
-            uint256 protoEth = (eth_out * factory.platformFeeBps()) / 10_000;
-            uint256 antifudEth = (eth_out * factory.antiFudPercentage()) /
-                10_000;
-            uint256 new_eth_out = eth_out - protoEth - antifudEth; // what will go to the seller
+        uint256 newRaised = (ethTarget - (vETH * 1e18)) / 1e18;
 
-            // updating the virtual and real reserves
-            vToken = vTOKEN_new;
-            rToken += amountIn; // real token reserve increases
-            vETH -= eth_out; // virtual ETH reserve decreases
-            rEth -= eth_out; // real ETH reserve decreases
+        ethOut = ethBefore - newRaised;
 
-            //transfer fees accordingly
-            if (protoEth > 0) {
-                (bool sent, ) = payable(factory.treasury()).call{
-                    value: protoEth
-                }("");
-                require(sent, "BNB transfer failed");
-            }
-            if (antifudEth > 0) {
-                uint256 toLauncher = (antifudEth *
-                    factory.antifiludLauncherQuotaBps()) / 10_000;
-                uint256 toCurve = antifudEth - toLauncher;
-
-                bonusLiquidity += toCurve; // keep the antifud portion in the curve for liquidity boost at migration
-                creatorsRewards[creator] += toLauncher; // save the portion for the creator to withdraw later
-            }
-
-            return new_eth_out;
-        }
+        // Implement the fees on the sell side
+        uint256 protoEth = (ethOut * factory.platformFeeBps()) / 10_000;
+        uint256 antifudEth = (ethOut * factory.antiFudPercentage()) / 10_000;
+        ethOut = ethOut - protoEth - antifudEth;
     }
-*/
+
     // -------- Migration --------
     /*
     function migrate() external nonReentrant whenNotPaused onlyOwner {

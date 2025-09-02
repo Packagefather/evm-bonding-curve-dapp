@@ -48,6 +48,26 @@ contract CurveFactory is Ownable(msg.sender) {
     event MigrationFeeBpsUpdated(uint96 newFee);
     event MinMaxCurveLimitUpdated(uint256 min, uint256 max);
 
+    struct ConfigParams {
+        address curveImpl;
+        uint96 protocolFeeBps;
+        uint96 referalFeeBps;
+        uint96 antifiludFeeBps;
+        uint96 migrationFeeBps;
+        address treasury;
+        address migrationFeeWallet;
+        uint256 minCurveLimitEth;
+        uint256 maxCurveLimitEth;
+        uint256 fixedAllocationPercent;
+    }
+
+    struct CreateParams {
+        string name;
+        string symbol;
+        uint256 migrationMcapEth; // FDV at A, e.g., 25e18
+        uint256 minHoldingForReferrer;
+    }
+
     constructor(ConfigParams memory p) {
         superAdmin = msg.sender;
         curveImpl = p.curveImpl;
@@ -60,26 +80,6 @@ contract CurveFactory is Ownable(msg.sender) {
         minCurveLimitEth = p.minCurveLimitEth;
         treasury = p.treasury;
         fixedAllocationPercent = p.fixedAllocationPercent;
-    }
-
-    struct ConfigParams {
-        address curveImpl;
-        uint96 protocolFeeBps;
-        uint96 referalFeeBps;
-        uint96 antifiludFeeBps;
-        uint96 migrationFeeBps;
-        address treasury;
-        address migrationFeeWallet;
-        uint256 minCurveLimitEth;
-        uint256 maxCurveLimitEth;
-        uin256 fixedAllocationPercent;
-    }
-
-    struct CreateParams {
-        string name;
-        string symbol;
-        uint256 migrationMcapEth; // FDV at A, e.g., 25e18
-        uint256 minHoldingForReferrer;
     }
 
     function createCurve(
@@ -178,12 +178,17 @@ contract CurveFactory is Ownable(msg.sender) {
         emit superAdminUpdated(_superAdmin);
     }
 
-    function setVirtualETH(uint256 _vETH) external onlyOwner {
-        require(_vETH > 0, "vETH must be > 0");
-        vETH = _vETH;
-    }
+    // function setVirtualETH(uint256 _vETH) external onlyOwner {
+    //     require(_vETH > 0, "vETH must be > 0");
+    //     vETH = _vETH;
+    // }
 
-    function virtualETH() external view returns (uint256) {
-        return vETH;
+    // function virtualETH() external view returns (uint256) {
+    //     return vETH;
+    // }
+
+    function setAntifiludLauncherQuotaBps(uint96 bps) external onlyOwner {
+        require(bps <= 10_000, "fee>100%");
+        antifiludLauncherQuotaBps = bps;
     }
 }

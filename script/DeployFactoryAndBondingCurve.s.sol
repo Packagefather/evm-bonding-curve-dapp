@@ -22,10 +22,11 @@ contract ContractsDeployment is Script {
             referalFeeBps: 50, // example: 0.5%
             antifiludFeeBps: 10, // example: 0.1%
             migrationFeeBps: 100, // example: 1%
-            treasury: msg.sender, // or your treasury address
-            migrationFeeWallet: msg.sender, // or another wallet
+            treasury: address(3), // or your treasury address
+            migrationFeeWallet: address(4), // or another wallet
             minCurveLimitEth: 1 ether, // minimum curve limit
-            maxCurveLimitEth: 50 ether // maximum curve limit
+            maxCurveLimitEth: 50 ether, // maximum curve limit
+            fixedAllocationPercent: 80000 // 80% in basis points
         });
 
         CurveFactory factory = new CurveFactory(config);

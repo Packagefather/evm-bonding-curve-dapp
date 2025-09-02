@@ -12,7 +12,7 @@ contract LaunchToken is Script {
         CurveFactory.CreateParams({
             name: "MyToken",
             symbol: "MTK",
-            allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
+            //allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
             migrationMcapEth: 10 ether, // 25 ETH as full FDV
             minHoldingForReferrer: 1e18 // Minimum holding to refer (1 token)
         });

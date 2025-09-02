@@ -2,17 +2,17 @@
 
 pragma solidity ^0.8.19;
 
-import {DeployBondingCurve} from "../../script/DeployBondingCurve.s.sol";
+import {ContractsDeployment} from "../../script/DeployFactoryAndBondingCurve.s.sol";
 import {BondingCurve} from "../../src/BondingCurve.sol";
-import {HelperConfig, CodeConstants} from "../../script/HelperConfig.s.sol";
+import {CurveFactory} from "../../src/Factory.sol";
+//import {HelperConfig, CodeConstants} from "../../script/HelperConfig.s.sol";
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 
-import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
-
 contract BondingCurveTest is Test {
     BondingCurve public bondingCurve;
-    HelperConfig public helperConfig;
+    CurveFactory public factory;
+    //HelperConfig public helperConfig;
 
     uint256 public constant SEND_VALUE = 0.1 ether; // just a value to make sure we are sending enough!
     uint256 public constant STARTING_USER_BALANCE = 10 ether;
@@ -30,8 +30,8 @@ contract BondingCurveTest is Test {
     address Charlie = makeAddr("Charlie");
 
     function setUp() external {
-        DeployBondingCurve deployer = new DeployBondingCurve();
-        (bondingCurve, helperConfig) = deployer.deployBondingCurve();
+        ContractsDeployment deployer = new ContractsDeployment();
+        (factory, bondingCurve) = deployer.deployFactoryAndBondingCurve();
 
         console.log("I want to see who this user is", USER);
         vm.deal(USER, 1 ether);
@@ -66,6 +66,8 @@ contract BondingCurveTest is Test {
         fundMe.fund();
     }
     */
+
+    /*
     function testFundUpdatesFundedDataStructure() public {
         vm.startPrank(USER);
 
@@ -165,4 +167,6 @@ contract BondingCurveTest is Test {
 
         assert(expectedTotalValueWithdrawn == totalValueWithdrawn);
     }
+
+    */
 }
