@@ -69,6 +69,16 @@ contract CurveFactory is Ownable(msg.sender) {
     }
 
     constructor(ConfigParams memory p) {
+        require(p.curveImpl != address(0), "Invalid implementation");
+        require(p.treasury != address(0), "Invalid treasury");
+        require(p.migrationFeeWallet != address(0), "Invalid wallet");
+        require(p.protocolFeeBps <= 10_000, "fee>100%");
+        require(p.referalFeeBps <= 10_000, "fee>100%");
+        require(p.antifiludFeeBps <= 10_000, "fee>100%");
+        require(p.migrationFeeBps <= 10_000, "fee>100%");
+        require(p.minCurveLimitEth < p.maxCurveLimitEth, "min>=max");
+        require(p.fixedAllocationPercent <= 100_000, "percent>100%");
+
         superAdmin = msg.sender;
         curveImpl = p.curveImpl;
         referalFeeBps = p.referalFeeBps;
@@ -177,15 +187,6 @@ contract CurveFactory is Ownable(msg.sender) {
         superAdmin = _superAdmin;
         emit superAdminUpdated(_superAdmin);
     }
-
-    // function setVirtualETH(uint256 _vETH) external onlyOwner {
-    //     require(_vETH > 0, "vETH must be > 0");
-    //     vETH = _vETH;
-    // }
-
-    // function virtualETH() external view returns (uint256) {
-    //     return vETH;
-    // }
 
     function setAntifiludLauncherQuotaBps(uint96 bps) external onlyOwner {
         require(bps <= 10_000, "fee>100%");

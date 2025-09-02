@@ -2,6 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {Script, console} from "forge-std/Script.sol";
+import "forge-std/Test.sol";
 //import {HelperConfig} from "./HelperConfig.s.sol";
 import {BondingCurve} from "../src/BondingCurve.sol";
 import {CurveFactory} from "../src/Factory.sol";
@@ -11,8 +12,11 @@ contract ContractsDeployment is Script {
         public
         returns (CurveFactory, BondingCurve)
     {
-        vm.startBroadcast();
+        //vm.startBroadcast(); // - we can add this in the test file for mainnet deployment.
+        // since we are using this deployment script for test, too, we will remove it from here, since test cannot use broadcast
+        // as foundry does not allow test to user broadcast and prank together.
         // 1. Deploy BondingCurve implementation
+
         BondingCurve bondingCurveImpl = new BondingCurve();
 
         // 2. Build config struct
@@ -36,8 +40,9 @@ contract ContractsDeployment is Script {
             address(bondingCurveImpl)
         );
         console.log("Factory within deployment script:", address(factory));
+        console.log("address(this):", address(this));
 
-        vm.stopBroadcast();
+        //vm.stopBroadcast();
         return (factory, bondingCurveImpl);
     }
 
