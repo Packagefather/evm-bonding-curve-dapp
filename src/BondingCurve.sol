@@ -345,16 +345,6 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 tokensBeforeSale = vToken - (k * 1e18) / denominatorBefore;
         uint256 tokensAfterSale = vToken - (k * 1e18) / denominatorAfter;
 
-        // Tokens before this buy
-        // uint256 tokensBeforeSale = vToken -
-        //     (k * 1e18) /
-        //     (vETH * 1e18 + raisedETH * 1e18);
-
-        // // Tokens after this buy
-        // uint256 tokensAfterSale = vToken -
-        //     (k * 1e18) /
-        //     (vETH * 1e18 + newRaised * 1e18);
-
         tokensOut = tokensAfterSale > tokensBeforeSale
             ? tokensAfterSale - tokensBeforeSale
             : 0;
