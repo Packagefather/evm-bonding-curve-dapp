@@ -28,7 +28,8 @@ contract CurveFactoryTest is Test {
     uint256 public constant GAS_PRICE = 1;
 
     address public constant USER = address(1);
-    address public constant ADMINISTRATOR = address(99);
+    address public ADMINISTRATOR = makeAddr("Admin");
+    address Alice = makeAddr("Alice");
 
     function setUp() public {
         vm.deal(ADMINISTRATOR, STARTING_USER_BALANCE);
@@ -40,7 +41,7 @@ contract CurveFactoryTest is Test {
         CurveFactory.ConfigParams memory config = CurveFactory.ConfigParams({
             curveImpl: address(bondingCurveImpl),
             protocolFeeBps: 200, // example: 2%
-            referalFeeBps: 50, // example: 0.5%
+            referralFeeBps: 50, // example: 0.5%
             antifiludFeeBps: 10, // example: 0.1%
             migrationFeeBps: 100, // example: 1%
             treasury: address(3), // or your treasury address
@@ -89,7 +90,7 @@ contract CurveFactoryTest is Test {
             "curveImpl mismatch"
         );
         assertEq(curveFactory.protocolFeeBps(), 200, "protocolFeeBps mismatch");
-        assertEq(curveFactory.referalFeeBps(), 50, "referalFeeBps mismatch");
+        assertEq(curveFactory.referralFeeBps(), 50, "referalFeeBps mismatch");
         assertEq(
             curveFactory.antifiludFeeBps(),
             10,
@@ -151,13 +152,13 @@ contract CurveFactoryTest is Test {
     function nonAdminCannotSetReferalFee() public {
         vm.prank(USER);
         vm.expectRevert("Ownable: caller is not the owner");
-        curveFactory.setReferalFeeBps(60);
+        curveFactory.setReferralFeeBps(60);
     }
 
     function adminCanSetReferalFee() public {
         vm.prank(ADMINISTRATOR);
-        curveFactory.setReferalFeeBps(60);
-        assertEq(curveFactory.referalFeeBps(), 60, "referalFeeBps mismatch");
+        curveFactory.setReferralFeeBps(60);
+        assertEq(curveFactory.referralFeeBps(), 60, "referalFeeBps mismatch");
     }
 
     function nonAdminCannotSetAntifiludFee() public {
@@ -292,7 +293,7 @@ contract CurveFactoryTest is Test {
 
         vm.prank(ADMINISTRATOR);
         vm.expectRevert("fee>100%");
-        curveFactory.setReferalFeeBps(10_001);
+        curveFactory.setReferralFeeBps(10_001);
 
         vm.prank(ADMINISTRATOR);
         vm.expectRevert("fee>100%");
@@ -328,7 +329,10 @@ contract CurveFactoryTest is Test {
         ).createCurve(params);
         BondingCurve newBondingCurve = BondingCurve(payable(bondingCurveAddr));
         CurveToken newToken = CurveToken(tokenAddr);
-        console.log("Deployed Clone Curve at:", address(newBondingCurve));
-        console.log("Deployed Token at:", address(newToken));
+        console.log(
+            "Deployed Second Clone Curve at:",
+            address(newBondingCurve)
+        );
+        console.log("Deployed New Token at:", address(newToken));
     }
 }

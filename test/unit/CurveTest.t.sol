@@ -5,59 +5,157 @@ pragma solidity ^0.8.19;
 import {ContractsDeployment} from "../../script/DeployFactoryAndBondingCurve.s.sol";
 import {BondingCurve} from "../../src/BondingCurve.sol";
 import {CurveFactory} from "../../src/Factory.sol";
+import {CurveToken} from "../../src/CurveToken.sol";
 //import {HelperConfig, CodeConstants} from "../../script/HelperConfig.s.sol";
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 
 contract BondingCurveTest is Test {
     BondingCurve public bondingCurve;
+    BondingCurve public bondingCurveImpl;
     CurveFactory public factory;
-    //HelperConfig public helperConfig;
+    CurveToken public token;
 
-    uint256 public constant SEND_VALUE = 0.1 ether; // just a value to make sure we are sending enough!
+    uint256 public constant SEND_VALUE = 1 ether; // just a value to make sure we are sending enough!
     uint256 public constant STARTING_USER_BALANCE = 10 ether;
     uint256 public constant GAS_PRICE = 1;
 
-    uint160 public constant USER_NUMBER = 50;
-    address public constant USER = address(USER_NUMBER); //USER = an Ethereum address derived from that number.
-
-    // uint256 public constant SEND_VALUE = 1e18;
-    // uint256 public constant SEND_VALUE = 1_000_000_000_000_000_000;
-    // uint256 public constant SEND_VALUE = 1000000000000000000;
-
+    address public ADMINISTRATOR = makeAddr("Admin");
     address Alice = makeAddr("Alice");
     address Bob = makeAddr("Bob");
     address Charlie = makeAddr("Charlie");
+    address Treasury = makeAddr("Treasury");
+
+    CurveFactory.CreateParams params =
+        CurveFactory.CreateParams({
+            name: "MyToken",
+            symbol: "MTK",
+            //allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
+            migrationMcapEth: 10 ether, // 25 ETH as full FDV
+            minHoldingForReferrer: 1e18 // Minimum holding to refer (1 token)
+        });
 
     function setUp() external {
-        ContractsDeployment deployer = new ContractsDeployment();
-        (factory, bondingCurve) = deployer.deployFactoryAndBondingCurve();
+        vm.deal(ADMINISTRATOR, STARTING_USER_BALANCE);
+        vm.deal(Alice, STARTING_USER_BALANCE); // creator
+        vm.deal(Bob, STARTING_USER_BALANCE); // buyer
+        vm.deal(Charlie, STARTING_USER_BALANCE); // referrer
 
-        console.log("I want to see who this user is", USER);
-        vm.deal(USER, 1 ether);
-        vm.deal(address(3), 1 ether);
-        //emit log_address(USER);
-        // this is the first one that runs
-        // if (!isZkSyncChain()) {
-        //     DeployFundMe deployer = new DeployFundMe();
-        //     (fundMe, helperConfig) = deployer.deployFundMe();
-        // } else {
-        //     MockV3Aggregator mockPriceFeed = new MockV3Aggregator(
-        //         DECIMALS,
-        //         INITIAL_PRICE
-        //     );
-        //     fundMe = new FundMe(address(mockPriceFeed));
-        // }
-        // vm.deal(USER, STARTING_USER_BALANCE);
+        // since we have added the prank logic in the deployment script, we can just call the deployment function here
+        ContractsDeployment deployer = new ContractsDeployment();
+        (factory, bondingCurveImpl) = deployer.deployFactoryAndBondingCurve();
+
+        console.log("Factory", address(factory));
+        console.log("Curve Implementation", address(bondingCurveImpl));
+        console.log("Owner of Factory:", factory.owner());
+
+        vm.startPrank(Alice);
+        (address deployedBondingCurveAddr, address tokenAddress) = factory
+            .createCurve(params);
+
+        // creator
+        bondingCurve = BondingCurve(payable(deployedBondingCurveAddr)); // <-- ✅ initialize curve instance here
+        token = CurveToken(tokenAddress); // <-- ✅ initialize token instance here
+        console.log("Deployed Curve at:", deployedBondingCurveAddr);
+        console.log("Deployed Token at:", tokenAddress);
+        console.log("this contract:", address(this));
+        console.log("Alice:", Alice);
+        //console.log("Owner of Curve:", bondingCurve.getOwner());
+        vm.stopPrank();
     }
 
-    function testPriceFeedSetCorrectly() public {
-        // address retreivedPriceFeed = address(fundMe.getPriceFeed());
-        // // (address expectedPriceFeed) = helperConfig.activeNetworkConfig();
-        // address expectedPriceFeed = helperConfig
-        //     .getConfigByChainId(block.chainid)
-        //     .priceFeed;
-        // assertEq(retreivedPriceFeed, expectedPriceFeed);
+    function testParamsSetup() public view {
+        assertEq(Alice, bondingCurve.creator());
+        assertEq(factory.superAdmin(), bondingCurve.factory().superAdmin());
+        assertEq(address(factory), address(bondingCurve.factory()));
+        assertEq(
+            bondingCurve.minHoldingForReferrer(),
+            params.minHoldingForReferrer
+        );
+        assertEq(bondingCurve.curveLimit(), params.migrationMcapEth);
+        assertEq(bondingCurve.migrationTriggered(), false);
+        console.log("curve factory address:", address(bondingCurve.factory()));
+        console.log("curve implementation address:", address(bondingCurveImpl));
+    }
+
+    function testCurveCurrentData() public view {
+        uint256 curveLimit = bondingCurve.curveLimit();
+        console.log("Curve Limit:", curveLimit);
+        uint256 totalSupply = token.totalSupply();
+        console.log("Total Supply:", totalSupply);
+        uint256 contractBalance = address(bondingCurve).balance;
+        console.log("Contract Balance:", contractBalance);
+        uint256 tokensBefore = bondingCurve.tokensBefore();
+        // console.log("Tokens Before:", tokensBefore);
+        // uint256 tokensAfter = bondingCurve.tokensAfter();
+        // console.log("Tokens After:", tokensAfter);
+        uint256 vEth = bondingCurve.vETH();
+        console.log("vEth:", vEth);
+        uint256 vToken = bondingCurve.vToken();
+        console.log("vToken:", vToken);
+        uint256 k = bondingCurve.k();
+        console.log("k:", k);
+    }
+
+    function testBuyMinTokensOut() public {
+        vm.startPrank(Bob);
+        uint256 bobInitialBalance = Bob.balance;
+        console.log("Bob initial balance:", bobInitialBalance);
+        uint256 treasuryBalance = Treasury.balance;
+        console.log("Treasury initial balance:", treasuryBalance / 1e18);
+
+        // Token Balance before buy
+        uint256 curevTokenBalance = token.balanceOf(address(bondingCurve));
+        console.log(
+            "Curve Token Balance before buy:",
+            curevTokenBalance / 1e18
+        );
+        uint256 tokenBalanceBefore = token.balanceOf(Bob);
+        //uint256 tokensOut = bondingCurve.getTokensOut(SEND_VALUE);
+        uint256 expectedTokens = bondingCurve.getTokensOut(SEND_VALUE);
+        uint256 minTokensOut = (expectedTokens * 98) / 100; // Apply 1% slippage buffer
+        // 224,460,431.654676258992805756
+        // 219,971,223
+        console.log("Tokens out for Bob:", minTokensOut); //30,028,873.917228103946102022 29,428,296.438883541867179981
+        assert(minTokensOut > 0);
+        // 1,000,000,000.000000000000000000
+        bondingCurve.buy{value: SEND_VALUE}(minTokensOut, address(0)); // uint256 minTokensOut, address _referrer
+
+        uint256 bobFinalBalance = Bob.balance;
+        uint256 tokenBalanceAfter = token.balanceOf(Bob);
+        uint256 curevTokenBalanceAfter = token.balanceOf(address(bondingCurve));
+        console.log(
+            "Curve Token Balance after buy:",
+            curevTokenBalanceAfter / 1e18
+        );
+        console.log("Bob final balance:", bobFinalBalance);
+        console.log("Bob token balance before buy:", tokenBalanceBefore);
+        console.log("Bob token balance after buy:", tokenBalanceAfter);
+        //assert(tokenBalanceAfter > tokenBalanceBefore);
+        assert(bobFinalBalance < bobInitialBalance);
+
+        address refOff = bondingCurve.referrerOf(Bob);
+        console.log("Bob's referrer:", refOff);
+        uint256 treasuryBalanceAfter = Treasury.balance;
+        console.log("Treasury final balance:", treasuryBalanceAfter);
+
+        uint256 tokenAfter = bondingCurve.tokensAfter();
+        uint256 tokenBefore = bondingCurve.tokensBefore();
+        console.log("Tokens Before:", tokenBefore);
+        console.log("Tokens After:", tokenAfter);
+        //uint256 nRe =
+        console.log("New raised eth", bondingCurve.newRaisedETH());
+        uint256 tokensSold = bondingCurve.tokensSold();
+        console.log("tokens Sold", tokensSold);
+        // uint256 ethWhole = treasuryBalanceAfter / 1e18;
+        // uint256 ethFraction = treasuryBalanceAfter % 1e18;
+
+        // console.log(
+        //     "Treasury final balance (ETH): %s.%018s",
+        //     ethWhole,
+        //     ethFraction
+        // ); 0.05000000000000000
+        vm.stopPrank();
     }
 
     /*

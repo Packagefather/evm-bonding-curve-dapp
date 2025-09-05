@@ -14,7 +14,7 @@ contract CurveFactory is Ownable(msg.sender) {
     address public migrationFeeWallet; // where migration fees go
 
     uint96 public protocolFeeBps; // 2% - protocol cut on both buy and sell
-    uint96 public referalFeeBps; // 2% charged to referrer
+    uint96 public referralFeeBps; // 2% charged to referrer
     uint96 public antifiludFeeBps; // 30% charged to filud. 50% goes to creator, 50% goes to liquidity pool
     uint96 public migrationFeeBps; // 10% charged to migration. 50% goes to creator, 50% goes to protocol
     uint96 public antifiludLauncherQuotaBps;
@@ -43,7 +43,7 @@ contract CurveFactory is Ownable(msg.sender) {
     event superAdminUpdated(address indexed superAdmin);
     event MigrationFeeWalletUpdated(address indexed newTreasury);
     event ProtocolFeeUpdated(uint96 newFee);
-    event ReferalFeeBpsUpdated(uint96 newFee);
+    event ReferralFeeBpsUpdated(uint96 newFee);
     event AntifiludFeeBpsUpdated(uint96 newFee);
     event MigrationFeeBpsUpdated(uint96 newFee);
     event MinMaxCurveLimitUpdated(uint256 min, uint256 max);
@@ -51,7 +51,7 @@ contract CurveFactory is Ownable(msg.sender) {
     struct ConfigParams {
         address curveImpl;
         uint96 protocolFeeBps;
-        uint96 referalFeeBps;
+        uint96 referralFeeBps;
         uint96 antifiludFeeBps;
         uint96 migrationFeeBps;
         address treasury;
@@ -73,7 +73,7 @@ contract CurveFactory is Ownable(msg.sender) {
         require(p.treasury != address(0), "Invalid treasury");
         require(p.migrationFeeWallet != address(0), "Invalid wallet");
         require(p.protocolFeeBps <= 10_000, "fee>100%");
-        require(p.referalFeeBps <= 10_000, "fee>100%");
+        require(p.referralFeeBps <= 10_000, "fee>100%");
         require(p.antifiludFeeBps <= 10_000, "fee>100%");
         require(p.migrationFeeBps <= 10_000, "fee>100%");
         require(p.minCurveLimitEth < p.maxCurveLimitEth, "min>=max");
@@ -81,7 +81,7 @@ contract CurveFactory is Ownable(msg.sender) {
 
         superAdmin = msg.sender;
         curveImpl = p.curveImpl;
-        referalFeeBps = p.referalFeeBps;
+        referralFeeBps = p.referralFeeBps;
         antifiludFeeBps = p.antifiludFeeBps;
         migrationFeeBps = p.migrationFeeBps;
         protocolFeeBps = p.protocolFeeBps;
@@ -135,10 +135,10 @@ contract CurveFactory is Ownable(msg.sender) {
         emit ProtocolFeeUpdated(bps);
     }
 
-    function setReferalFeeBps(uint96 bps) external onlyOwner {
+    function setReferralFeeBps(uint96 bps) external onlyOwner {
         require(bps <= 10_000, "fee>100%");
-        referalFeeBps = bps;
-        emit ReferalFeeBpsUpdated(bps);
+        referralFeeBps = bps;
+        emit ReferralFeeBpsUpdated(bps);
     }
 
     function setAntifiludFeeBps(uint96 bps) external onlyOwner {

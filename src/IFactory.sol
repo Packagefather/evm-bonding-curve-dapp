@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 interface IFactory {
     // --- Protocol-level Fees ---
-    function platformFeeBps() external view returns (uint96);
+    function protocolFeeBps() external view returns (uint96);
 
     function sellFeeBps() external view returns (uint96);
 
@@ -23,7 +23,7 @@ interface IFactory {
 
     function antiFudPercentage() external view returns (uint96); // e.g. 30% antifud
 
-    function protocolFeeBps() external view returns (uint96); // % of fee that goes to protocol
+    //function protocolFeeBps() external view returns (uint96); // % of fee that goes to protocol
 
     function antifiludLauncherQuotaBps() external view returns (uint96); // % of antifud sent to launcher
 
@@ -44,4 +44,6 @@ interface IFactory {
     function tokenUsed(address token) external view returns (bool);
 
     function fixedAllocationPercent() external view returns (uint256);
+
+    function superAdmin() external view returns (address);
 }

@@ -7,6 +7,7 @@ import {Ownable} from "@openzeppelin-contracts/access/Ownable2Step.sol";
 import {SafeTransferLib} from "@solady/utils/SafeTransferLib.sol";
 import {CurveToken} from "./CurveToken.sol";
 import "./IFactory.sol";
+import "forge-std/console.sol";
 
 contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     using SafeTransferLib for address;
@@ -59,6 +60,10 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     error Slippage();
     error vTokensExceeded();
 
+    uint256 public tokensAfter;
+    uint256 public tokensBefore;
+    uint256 public newRaisedETH;
+
     // constructor() {
     //     //treasury = _treasury;
     //     //superAdmin = msg.sender;
@@ -91,7 +96,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         minHoldingForReferrer = _minHoldingForReferrer;
 
         vToken = (totalSupply * allocationA) / 100_000;
-        k = vETH * vToken; // Calculate constant k = vETH * vToken
+        //k = vETH * vToken; // Calculate constant k = vETH * vToken
+        k = (vETH * vToken) / 1e18;
 
         raisedETH = 0;
         tokensSold = 0;
@@ -114,6 +120,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 minTokensOut,
         address _referrer
     ) public payable nonReentrant whenNotPaused {
+        require(token != address(0), "No token address set");
         require(_referrer != msg.sender, "you cannot refer yourself");
         if (migrationTriggered) revert TradingStopped();
 
@@ -125,7 +132,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
         // fees
         uint256 refFeeEth = (incomingETH * factory.referralFeeBps()) / 10_000;
-        uint256 protoEth = (incomingETH * factory.platformFeeBps()) / 10_000;
+        uint256 protoEth = (incomingETH * factory.protocolFeeBps()) / 10_000;
         uint256 ethInEff = incomingETH - refFeeEth - protoEth;
 
         // ===== VALIDATE AND REWARD REFERRER =====
@@ -168,12 +175,12 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         // Bonding curve maths starts here
 
         // New total ETH raised if this purchase goes through
-        uint256 newRaisedETH = raisedETH + ethInEff;
+        newRaisedETH = raisedETH + ethInEff;
 
         // Calculate tokens sold at newRaisedETH (using bonding curve)
         // Calculate how many tokens would be sold at this new point
-        uint256 tokensAfter = tokensSoldAt(newRaisedETH);
-        uint256 tokensBefore = tokensSoldAt(raisedETH);
+        tokensAfter = tokensSoldAt(newRaisedETH);
+        tokensBefore = tokensSoldAt(raisedETH);
 
         uint256 tokensToBuy = tokensAfter - tokensBefore;
 
@@ -182,50 +189,63 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
         if (tokensToBuy > tokensAvailable) {
             tokensToBuy = tokensAvailable;
-
-            // Compute the ETH needed to buy exactly these remaining tokens
-            uint256 newTokensSold = tokensSold + tokensToBuy;
-            uint256 denominator = vToken - newTokensSold; // y = vToken - tokensSold
-
-            require(denominator > 0, "Denominator zero");
-
-            uint256 ethTarget = (k * 1e18) / denominator;
-            require(ethTarget >= vETH * 1e18, "Invalid curve state");
-
-            uint256 requiredRaisedETH = (ethTarget - (vETH * 1e18)) / 1e18; // Unscale
-
-            uint256 ethToAccept = requiredRaisedETH - raisedETH;
-
-            // Cap ethToAccept to msg.value just in case
-            if (ethToAccept > msg.value) {
-                ethToAccept = msg.value;
-            }
-
-            // Refund excess
-            uint256 refund = msg.value - ethToAccept;
-            if (refund > 0) {
-                payable(msg.sender).transfer(refund);
-            }
-
-            // Update state with adjusted ETH and tokens
-            raisedETH += ethToAccept;
-            tokensSold += tokensToBuy;
-
-            // Transfer tokens
-            bool sent = CurveToken(token).transfer(msg.sender, tokensToBuy);
-            require(sent, "Token transfer failed");
-
-            if (tokensSold >= vToken || raisedETH >= curveLimit) {
-                migrationTriggered = true;
-                emit MigrationTriggered(raisedETH, tokensSold);
-            }
-
-            emit Bought(msg.sender, ethToAccept, tokensToBuy);
         }
+        // Compute the ETH needed to buy exactly these remaining tokens
+        uint256 newTokensSold = tokensSold + tokensToBuy;
+        uint256 denominator = vToken - newTokensSold; // y = vToken - tokensSold
+
+        require(denominator > 0, "Denominator zero");
+
+        // uint256 ethTarget = (k * 1e18) / denominator;
+        // require(ethTarget >= vETH * 1e18, "Invalid curve state");
+
+        uint256 ethTarget = (k * 1e18) / denominator; // 18 decimals scaled up to keep precision
+        require(ethTarget >= vETH, "Invalid curve state");
+
+        // uint256 requiredRaisedETH = (ethTarget - (vETH * 1e18)) / 1e18; // Unscale
+
+        // uint256 ethToAccept = requiredRaisedETH - raisedETH;
+
+        uint256 requiredRaisedETH = ethTarget - vETH; // both 18 decimals, result 18 decimals
+        uint256 ethToAccept = requiredRaisedETH - raisedETH; // assuming raisedETH is 18 decimals too
+
+        // Cap ethToAccept to msg.value just in case
+        if (ethToAccept > msg.value) {
+            ethToAccept = msg.value;
+        }
+
+        // Refund excess
+        uint256 refund = msg.value - ethToAccept;
+        if (refund > 0) {
+            payable(msg.sender).transfer(refund);
+        }
+
+        // Update state with adjusted ETH and tokens
+        raisedETH += ethToAccept;
+        tokensSold += tokensToBuy;
+
+        // Transfer tokens
+        // bool sent = CurveToken(token).transfer(msg.sender, 50);
+        // require(!sent, "Token transfer failed");
+
+        SafeTransferLib.safeTransfer(token, msg.sender, tokensToBuy);
+
+        if (tokensSold >= vToken || raisedETH >= curveLimit) {
+            migrationTriggered = true;
+            emit MigrationTriggered(raisedETH, tokensSold);
+        }
+
+        console.log("Hello world");
+        console.log("tokensToBuy in contract:", tokensToBuy);
+        console.log("ethToAccept in contract:", ethToAccept);
+        emit Bought(msg.sender, ethToAccept, tokensToBuy);
 
         require(tokensToBuy >= minTokensOut, "slippage too high");
     }
 
+    // 2,000,000,000.000000000000000000.000000000000000000
+    // 800,000,000.000000000000000000
+    //0.975000000000000000
     function tokensSoldAt(uint256 x) public view returns (uint256) {
         require(vETH + x > 0, "Denominator zero");
 
@@ -269,6 +289,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         // ETH to return = before - after
         uint256 ethToReturn = ethBefore - ethAfter;
 
+        // console.log("tokensToBuy:", tokensToBuy);
+        // console.log("minTokensOut:", minTokensOut);
+
         require(ethToReturn >= minEthOut, "Slippage too high");
 
         // Effects
@@ -287,7 +310,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         // fees
         uint256 antifiludFeeEth = (ethToReturn * factory.antifiludFeeBps()) /
             10_000;
-        uint256 protoEth = (ethToReturn * factory.platformFeeBps()) / 10_000;
+        uint256 protoEth = (ethToReturn * factory.protocolFeeBps()) / 10_000;
         uint256 ethInEff = ethToReturn - antifiludFeeEth - protoEth;
 
         uint256 antifudToLauncher = (antifiludFeeEth *
@@ -310,23 +333,31 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
         // calculate the fees
         uint256 refFeeEth = (ethIn * factory.referralFeeBps()) / 10_000;
-        uint256 protoEth = (ethIn * factory.platformFeeBps()) / 10_000;
+        uint256 protoEth = (ethIn * factory.protocolFeeBps()) / 10_000;
         uint256 ethInEff = ethIn - refFeeEth - protoEth;
 
         // Calculate new raisedETH after this buy
         uint256 newRaised = raisedETH + ethInEff;
 
+        uint256 denominatorBefore = vETH + raisedETH; // 18 decimals
+        uint256 denominatorAfter = vETH + newRaised; // 18 decimals
+
+        uint256 tokensBeforeSale = vToken - (k * 1e18) / denominatorBefore;
+        uint256 tokensAfterSale = vToken - (k * 1e18) / denominatorAfter;
+
         // Tokens before this buy
-        uint256 tokensBefore = vToken -
-            (k * 1e18) /
-            (vETH * 1e18 + raisedETH * 1e18);
+        // uint256 tokensBeforeSale = vToken -
+        //     (k * 1e18) /
+        //     (vETH * 1e18 + raisedETH * 1e18);
 
-        // Tokens after this buy
-        uint256 tokensAfter = vToken -
-            (k * 1e18) /
-            (vETH * 1e18 + newRaised * 1e18);
+        // // Tokens after this buy
+        // uint256 tokensAfterSale = vToken -
+        //     (k * 1e18) /
+        //     (vETH * 1e18 + newRaised * 1e18);
 
-        tokensOut = tokensAfter > tokensBefore ? tokensAfter - tokensBefore : 0;
+        tokensOut = tokensAfterSale > tokensBeforeSale
+            ? tokensAfterSale - tokensBeforeSale
+            : 0;
 
         // Clamp to remaining tokens (in case of nearing curve limit)
         uint256 tokensAvailable = vToken - tokensSold;
@@ -343,16 +374,16 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         require(tokensIn <= tokensSold, "Not enough tokens sold yet");
 
         // tokensSold BEFORE selling
-        uint256 tokensBefore = tokensSold;
+        uint256 tokensBeforeSale = tokensSold;
 
         // tokensSold AFTER selling (going backward on curve)
-        uint256 tokensAfter = tokensBefore - tokensIn;
+        uint256 tokensAfterSale = tokensBeforeSale - tokensIn;
 
         // raisedETH BEFORE selling
         uint256 ethBefore = raisedETH;
 
         // ETH raised if tokensAfter was the sold amount (solve for ETH where y = vToken - tokensAfter)
-        uint256 denominatorAfter = vToken - tokensAfter;
+        uint256 denominatorAfter = vToken - tokensAfterSale;
         require(denominatorAfter > 0, "Invalid denominator");
 
         uint256 ethTarget = (k * 1e18) / denominatorAfter;
@@ -363,7 +394,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         ethOut = ethBefore - newRaised;
 
         // Implement the fees on the sell side
-        uint256 protoEth = (ethOut * factory.platformFeeBps()) / 10_000;
+        uint256 protoEth = (ethOut * factory.protocolFeeBps()) / 10_000;
         uint256 antifudEth = (ethOut * factory.antiFudPercentage()) / 10_000;
         ethOut = ethOut - protoEth - antifudEth;
     }
@@ -392,17 +423,22 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 */
     // -------- Admin --------
 
-    function pause() external onlyOwner {
+    function pause() external onlySuperAdmin {
         _pause();
     }
 
-    function unpause() external onlyOwner {
+    function unpause() external onlySuperAdmin {
         _unpause();
     }
 
-    function setFactory(address _factory) external onlyOwner {
-        factory = IFactory(_factory);
+    modifier onlySuperAdmin() {
+        require(msg.sender == factory.superAdmin(), "Not super admin");
+        _;
     }
+
+    // function setFactory(address _factory) external onlySuperAdmin {
+    //     factory = IFactory(_factory);
+    // }
 
     // GET FUNCTIONS
     function getTreasury() internal view returns (address) {
@@ -416,5 +452,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     function getLimits() public view returns (uint256 min, uint256 max) {
         min = factory.minCurveLimitEth();
         max = factory.maxCurveLimitEth();
+    }
+
+    function getOwner() public pure returns (address owner) {
+        return owner;
     }
 }
