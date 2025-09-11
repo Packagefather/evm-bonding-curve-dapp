@@ -30,7 +30,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     mapping(address => uint256) public referralRewards;
     mapping(address => uint256) public creatorsRewards;
 
-    uint256 public allocationA; // ~80% of supply
+    uint256 public allocationA; // ~80% of supply.
     uint256 public curveLimit; // FDV at A (for sanity checks)
     uint256 public minHoldingForReferrer; // min tokens a referrer must hold to get referral fees
 
