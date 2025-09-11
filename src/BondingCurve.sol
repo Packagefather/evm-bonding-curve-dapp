@@ -36,7 +36,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     //Immutatble state
     uint256 public vToken; // starts at iVToken
-    uint256 public vETH; // starts at ivETH
+    uint256 public vETH; // starts at ivETH.
     uint256 public k;
     uint256 public raisedETH; // total ETH raised so far (wei)
     uint256 public tokensSold; // tokens sold via bonding curve (18 decimals)
