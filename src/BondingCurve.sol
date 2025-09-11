@@ -331,7 +331,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         // === UPDATE VIRTUAL RESERVES ===
         vETH = newVETH;
         vToken = newVTOKEN;
-        console.log("this is the curve vToken after buy:", vToken);
+        console.log("this is the curve vToken after buy:.", vToken);
         console.log("tokens to buy:", tokensToBuy);
         // 77,671,707.582617470159459352
         // 778,270,509.977827050997782706
