@@ -29,12 +29,11 @@ contract BondingCurveTest is Test {
     address Bob = makeAddr("Bob");
     address Charlie = makeAddr("Charlie");
     address Treasury = makeAddr("Treasury");
-    // 300209937018894331700489854
+
     CurveFactory.CreateParams params =
         CurveFactory.CreateParams({
             name: "MyToken",
             symbol: "MTK",
-            //allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
             migrationMcapEth: Constants.CURVE_LIMIT, // 25 ETH as full FDV
             minHoldingForReferrer: 1e18, // Minimum holding to refer (1 token)
             vETH: Constants.CURVE_VETH

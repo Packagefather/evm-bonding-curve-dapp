@@ -6,7 +6,7 @@ library Constants {
     //uint256 public constant MAX_SUPPLY = 10_000_000e18;
     //uint256 public constant TOKEN_DECIMALS = 18;
     uint256 public constant CURVE_VETH = 1e18; //2e18
-    uint256 public constant CURVE_LIMIT = 10 ether; // 20 ether
+    uint256 public constant CURVE_LIMIT = 0.1 ether; // 20 ether
 
     //address public constant TREASURY_ADDRESS = 0x123...abc; // Replace with actual address
 }

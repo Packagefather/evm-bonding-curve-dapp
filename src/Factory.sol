@@ -19,7 +19,7 @@ contract CurveFactory is Ownable(msg.sender) {
     uint96 public migrationFeeBps; // 10% charged to migration. 50% goes to creator, 50% goes to protocol
     uint96 public migrationFeeBpsCreator;
     uint96 public antifiludLauncherQuotaBps;
-    uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
+    uint256 public minCurveLimitEth = 0.1 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
     uint256 public fixedAllocationPercent; // % of total supply allocated to bonding curve, e.g., 80% = 80000 bps
     uint256 public fixedAllocationOfVToken; // % of vToken to sell, e.g., 99.99% = 9999 bps
@@ -27,8 +27,8 @@ contract CurveFactory is Ownable(msg.sender) {
     uint8 public constant decimals = 18;
     uint256 public constant totalSupply = 1_000_000_000e18;
 
-    address public PancakeRouter = 0x10ED43C718714eb63d5aA57B78B54704E256024E;
-    address public PancakeFactory = 0xcA143Ce32Fe78f1f701BfA51C0BfC9D8aC1A6C9;
+    address public PancakeRouter;
+    address public PancakeFactory;
 
     // Pool details
     //uint256 public vETH = 2.5e18; // initial virtual ETH, e.g., 2.5e18 wei (2.5 ETH)
@@ -110,6 +110,9 @@ contract CurveFactory is Ownable(msg.sender) {
     function createCurve(
         CreateParams memory p
     ) external returns (address curve, address token) {
+        require(PancakeFactory != address(0), "PancakeFactory not set");
+        require(PancakeRouter != address(0), "PancakeRouter not set");
+
         // 1) Deploy token
         token = address(
             new CurveToken(p.name, p.symbol, decimals, address(this))

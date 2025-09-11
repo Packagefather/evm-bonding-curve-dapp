@@ -586,6 +586,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
             block.timestamp + 300
         );
 
+        emit LPMigrated(tokensToLP, netETH, priceAtMigration);
+
+        //emit LPMigrated(tokensToLP, netETH, priceAtMigration);
         /*
         CurveToken(token).approve(address(lpRouter), tokensToLP);
         lpRouter.addLiquidityETH{value: netETH}(
@@ -601,6 +604,5 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         lpMigrated = true;
 
         */
-        emit LPMigrated(tokensToLP, netETH, priceAtMigration);
     }
 }
