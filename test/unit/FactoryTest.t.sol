@@ -48,7 +48,9 @@ contract CurveFactoryTest is Test {
             migrationFeeWallet: address(4), // or another wallet
             minCurveLimitEth: 1 ether, // minimum curve limit
             maxCurveLimitEth: 50 ether, // maximum curve limit
-            fixedAllocationPercent: 80000 // 80% in basis points
+            fixedAllocationPercent: 8000, // 80% in basis points
+            fixedAllocationOfVTokenPercent: 9999, // 99.99% in basis points of vToken to sell
+            antifiludLauncherQuotaBps: 5000
         });
 
         // ContractsDeployment deployer = new ContractsDeployment();

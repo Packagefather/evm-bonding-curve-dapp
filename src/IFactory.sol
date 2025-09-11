@@ -21,10 +21,6 @@ interface IFactory {
     // --- Liquidity & Anti-FUD ---
     function liquidityPercentage() external view returns (uint96); // e.g. 90% of raised funds
 
-    function antiFudPercentage() external view returns (uint96); // e.g. 30% antifud
-
-    //function protocolFeeBps() external view returns (uint96); // % of fee that goes to protocol
-
     function antifiludLauncherQuotaBps() external view returns (uint96); // % of antifud sent to launcher
 
     function antifiludFeeBps() external view returns (uint96); // % antifud fee on sells
@@ -44,6 +40,8 @@ interface IFactory {
     function tokenUsed(address token) external view returns (bool);
 
     function fixedAllocationPercent() external view returns (uint256);
+
+    function fixedAllocationOfVToken() external view returns (uint256);
 
     function superAdmin() external view returns (address);
 }

@@ -2,14 +2,14 @@
 
 pragma solidity ^0.8.19;
 
-import {ContractsDeployment} from "../../script/DeployFactoryAndBondingCurve.s.sol";
-import {LaunchToken} from "../../script/Interactions.s.sol";
-import {BondingCurve} from "../../src/BondingCurve.sol";
-import {CurveFactory} from "../../src/Factory.sol";
+import { ContractsDeployment } from "../../script/DeployFactoryAndBondingCurve.s.sol";
+import { LaunchToken } from "../../script/Interactions.s.sol";
+import { BondingCurve } from "../../src/BondingCurve.sol";
+import { CurveFactory } from "../../src/Factory.sol";
 //import {HelperConfig} from "../../script/HelperConfig.s.sol";
-import {Test} from "forge-std/Test.sol";
-import {Script, console} from "forge-std/Script.sol";
-import {StdCheats} from "forge-std/StdCheats.sol";
+import { Test } from "forge-std/Test.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
 
 //import {ZkSyncChainChecker} from "lib/foundry-devops/src/ZkSyncChainChecker.sol";
 
@@ -67,9 +67,7 @@ contract InteractionsTest is StdCheats, Test {
         // run() is your script’s "main" entry point — it only runs when you execute the script with forge script.
         //Tests don’t run run(), they call functions directly as written in your test code.
         LaunchToken launchToken = new LaunchToken();
-        (address curve, address token) = launchToken.initializeCurve(
-            address(curveFactory)
-        ); // this is telling it which contract interface to use and the function to call
+        (address curve, address token) = launchToken.initializeCurve(address(curveFactory)); // this is telling it which contract interface to use and the function to call
 
         console.log("Curve and Token", curve, token);
         BondingCurve newCurve = BondingCurve(payable(address(curve)));

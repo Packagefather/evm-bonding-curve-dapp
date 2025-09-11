@@ -29,13 +29,15 @@ contract ContractsDeployment is Script {
             curveImpl: address(bondingCurveImpl),
             protocolFeeBps: 200, // example: 2%
             referralFeeBps: 50, // example: 0.5%
-            antifiludFeeBps: 10, // example: 0.1%
+            antifiludFeeBps: 3000, // example: 30%
             migrationFeeBps: 100, // example: 1%
             treasury: Treasury, // or your treasury address
             migrationFeeWallet: address(4), // or another wallet
             minCurveLimitEth: 1 ether, // minimum curve limit
-            maxCurveLimitEth: 50 ether, // maximum curve limit
-            fixedAllocationPercent: 80000 // 80% in basis points
+            maxCurveLimitEth: 100 ether, // maximum curve limit
+            fixedAllocationPercent: 8000, // 80% in basis points
+            fixedAllocationOfVTokenPercent: 9999, // 99.99% in basis points of vToken to sell
+            antifiludLauncherQuotaBps: 5000 // example 50%
         });
 
         CurveFactory factory = new CurveFactory(config);

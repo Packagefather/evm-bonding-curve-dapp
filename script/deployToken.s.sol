@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import {Script, console} from "forge-std/Script.sol";
-import {Test} from "forge-std/Test.sol";
-import {CurveToken} from "../src/CurveToken.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { Test } from "forge-std/Test.sol";
+import { CurveToken } from "../src/CurveToken.sol";
 
 contract TokenDeployment is Script, Test {
     uint256 public constant STARTING_USER_BALANCE = 10 ether;

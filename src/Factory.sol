@@ -21,7 +21,7 @@ contract CurveFactory is Ownable(msg.sender) {
     uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
     uint256 public fixedAllocationPercent; // % of total supply allocated to bonding curve, e.g., 80% = 80000 bps
-
+    uint256 public fixedAllocationOfVToken; // % of vToken to sell, e.g., 99.99% = 9999 bps
     //Token details
     uint8 public constant decimals = 18;
     uint256 public constant totalSupply = 1_000_000_000e18;
@@ -59,6 +59,8 @@ contract CurveFactory is Ownable(msg.sender) {
         uint256 minCurveLimitEth;
         uint256 maxCurveLimitEth;
         uint256 fixedAllocationPercent;
+        uint256 fixedAllocationOfVTokenPercent;
+        uint96 antifiludLauncherQuotaBps;
     }
 
     struct CreateParams {
@@ -77,7 +79,9 @@ contract CurveFactory is Ownable(msg.sender) {
         require(p.antifiludFeeBps <= 10_000, "fee>100%");
         require(p.migrationFeeBps <= 10_000, "fee>100%");
         require(p.minCurveLimitEth < p.maxCurveLimitEth, "min>=max");
-        require(p.fixedAllocationPercent <= 100_000, "percent>100%");
+        require(p.fixedAllocationPercent <= 10_000, "percent>100%");
+        require(p.fixedAllocationOfVTokenPercent <= 10_000, "percent>100%");
+        require(p.antifiludLauncherQuotaBps <= 10_000, "percent>100%");
 
         superAdmin = msg.sender;
         curveImpl = p.curveImpl;
@@ -90,6 +94,8 @@ contract CurveFactory is Ownable(msg.sender) {
         minCurveLimitEth = p.minCurveLimitEth;
         treasury = p.treasury;
         fixedAllocationPercent = p.fixedAllocationPercent;
+        fixedAllocationOfVToken = p.fixedAllocationOfVTokenPercent;
+        antifiludLauncherQuotaBps = p.antifiludLauncherQuotaBps;
     }
 
     function createCurve(
