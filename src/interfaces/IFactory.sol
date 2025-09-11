@@ -11,6 +11,8 @@ interface IFactory {
 
     function migrationFeeBps() external view returns (uint96);
 
+    function migrationFeeBpsCreator() external view returns (uint96);
+
     // --- Treasury & Migration Wallets ---
     function treasury() external view returns (address);
 
@@ -44,4 +46,8 @@ interface IFactory {
     function fixedAllocationOfVToken() external view returns (uint256);
 
     function superAdmin() external view returns (address);
+
+    function getPancakeRouter() external view returns (address);
+
+    function getPancakeFactory() external view returns (address);
 }

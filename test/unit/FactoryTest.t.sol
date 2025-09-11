@@ -6,8 +6,10 @@ import {ContractsDeployment} from "../../script/DeployFactoryAndBondingCurve.s.s
 import "../../src/BondingCurve.sol";
 import "../../src/CurveToken.sol";
 import "../../src/Factory.sol";
+import "../constants/constants.sol";
 
 contract CurveFactoryTest is Test {
+    using Constants for *;
     CurveFactory public curveFactory;
 
     CurveToken public token;
@@ -43,7 +45,8 @@ contract CurveFactoryTest is Test {
             protocolFeeBps: 200, // example: 2%
             referralFeeBps: 50, // example: 0.5%
             antifiludFeeBps: 10, // example: 0.1%
-            migrationFeeBps: 100, // example: 1%
+            migrationFeeBps: 500, // example: 5%
+            migrationFeeBpsCreator: 500, // 5%
             treasury: address(3), // or your treasury address
             migrationFeeWallet: address(4), // or another wallet
             minCurveLimitEth: 1 ether, // minimum curve limit
@@ -66,8 +69,9 @@ contract CurveFactoryTest is Test {
         CurveFactory.CreateParams memory params = CurveFactory.CreateParams({
             name: "MyToken",
             symbol: "MTK",
-            migrationMcapEth: 10 ether, // 25 ETH as full FDV
-            minHoldingForReferrer: 1000e18 // Minimum holding to refer (1 token)
+            migrationMcapEth: Constants.CURVE_LIMIT, // 25 ETH as full FDV
+            minHoldingForReferrer: 1000e18, // Minimum holding to refer (1 token)
+            vETH: Constants.CURVE_VETH
         });
 
         (address bondingCurveAddr, address tokenAddr) = CurveFactory(
@@ -323,7 +327,8 @@ contract CurveFactoryTest is Test {
             name: "AnotherToken",
             symbol: "ATK",
             migrationMcapEth: 5 ether, // 25 ETH as full FDV
-            minHoldingForReferrer: 500e18 // Minimum holding to refer (0.5 token)
+            minHoldingForReferrer: 500e18, // Minimum holding to refer (0.5 token)
+            vETH: Constants.CURVE_VETH
         });
         vm.prank(USER);
         (address bondingCurveAddr, address tokenAddr) = CurveFactory(

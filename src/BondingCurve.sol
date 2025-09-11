@@ -1,19 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./interfaces/IPancakeFactory.sol";
+import "./interfaces/IPancakeRouter02.sol";
+
 import {ReentrancyGuard} from "@openzeppelin-contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin-contracts/utils/Pausable.sol";
 import {Ownable} from "@openzeppelin-contracts/access/Ownable2Step.sol";
 import {SafeTransferLib} from "@solady/utils/SafeTransferLib.sol";
 import {CurveToken} from "./CurveToken.sol";
-import "./IFactory.sol";
+import "./interfaces/IFactory.sol";
 import "forge-std/console.sol";
 
 contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     using SafeTransferLib for address;
 
     IFactory public factory;
+
+    IPancakeFactory public pancakeFactory;
+    IPancakeRouter02 public lpRouter;
+
     address public token;
     bool private initialized;
 
@@ -35,6 +42,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     uint256 public tokensSold; // tokens sold via bonding curve (18 decimals)
     uint256 public totalSupply; // e.g. 1_000_000_000e18
     bool public migrationTriggered;
+    bool public lpMigrated;
 
     // tokens allocated to bonding curve (80% of totalSupply)
     // curve constant
@@ -55,6 +63,11 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
     event Initialized(address indexed token, address indexed launcher);
     event ReferralBonusAwarded(address indexed referrer, uint256 amount);
     event MigrationTriggered(uint256 raisedETH, uint256 tokensSold);
+    event LPMigrated(
+        uint256 tokensToLP,
+        uint256 netETH,
+        uint256 priceAtMigration
+    );
 
     error TradingStopped();
     error ZeroAmount();
@@ -63,7 +76,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     uint256 public tokensAfter;
     uint256 public tokensBefore;
-    uint256 public newRaisedETH;
+
+    //uint256 public newRaisedETH;
 
     // constructor() {
     //     //treasury = _treasury;
@@ -74,7 +88,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         address _token,
         uint256 _curveLimit,
         address _creator,
-        uint256 _minHoldingForReferrer
+        uint256 _minHoldingForReferrer,
+        uint256 _vETH
     ) external {
         require(!initialized, "Already initialized");
         require(token == address(0), "init once");
@@ -91,10 +106,9 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         totalSupply = factory.totalSupply();
         curveLimit = _curveLimit; // curveLimit set by user, in ETH (or SOL)
         //vETH = curveLimit / 4; // Calculate initial virtual ETH reserve (vETH) based on curveLimit
-        //vETH = calculateVETH(_curveLimit, sellPercentBps);
         allocationA = factory.fixedAllocationPercent();
-        uint256 allocationB = factory.fixedAllocationOfVToken(); // 99.99% of vToken is what we want to sell
-        vETH = calculateVETH(_curveLimit, allocationB);
+        //uint256 allocationB = factory.fixedAllocationOfVToken(); // 99.99% of vToken is what we want to sell
+        vETH = _vETH; //44 * 1e18; //calculateVETH(_curveLimit, allocationB);
         console.log("vETH at init:", vETH);
         creator = _creator;
         minHoldingForReferrer = _minHoldingForReferrer;
@@ -128,133 +142,6 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 denominator = (1e18 * 1e18) / (1e18 - p) - 1e18;
         return (_curveLimit * 1e18) / denominator;
     }
-
-    // function buy(
-    //     uint256 minTokensOut,
-    //     address _referrer
-    // ) public payable nonReentrant whenNotPaused {
-    //     require(token != address(0), "No token address set");
-    //     require(_referrer != msg.sender, "you cannot refer yourself");
-    //     if (migrationTriggered) revert TradingStopped();
-
-    //     uint256 incomingETH = msg.value;
-    //     if (msg.value == 0) revert ZeroAmount();
-
-    //     require(incomingETH > 0, "Insufficient ETH for tokens");
-    //     //require(tokensSold + tokensToBuy <= vToken, "Exceeds allocation");
-
-    //     // fees
-    //     uint256 refFeeEth = (incomingETH * factory.referralFeeBps()) / 10_000;
-    //     uint256 protoEth = (incomingETH * factory.protocolFeeBps()) / 10_000;
-    //     uint256 ethInEff = incomingETH - refFeeEth - protoEth;
-
-    //     // ===== VALIDATE AND REWARD REFERRER =====
-    //     if (_referrer != address(0)) {
-    //         // if referer has been set, send it to the referer
-    //         // Check if referrer actually holds some tokens before rewarding them
-    //         if (
-    //             CurveToken(token).balanceOf(_referrer) >= minHoldingForReferrer
-    //         ) {
-    //             // add it to the referrers mapping
-    //             if (referrerOf[msg.sender] == address(0)) {
-    //                 referrerOf[msg.sender] = _referrer;
-    //             }
-
-    //             referralRewards[referrerOf[msg.sender]] += refFeeEth;
-    //             emit ReferralBonusAwarded(referrerOf[msg.sender], refFeeEth);
-    //         } else {
-    //             // send it tot the admin fee account
-    //             (bool sentA, ) = payable(factory.treasury()).call{
-    //                 value: refFeeEth
-    //             }("");
-    //             require(sentA, "BNB transfer failed");
-
-    //             emit ReferralBonusAwarded(factory.treasury(), refFeeEth);
-    //         }
-    //     } else {
-    //         // send it to the admin fee account
-    //         (bool sentB, ) = payable(factory.treasury()).call{value: refFeeEth}(
-    //             ""
-    //         );
-    //         require(sentB, "BNB transfer failed");
-
-    //         emit ReferralBonusAwarded(factory.treasury(), refFeeEth);
-    //     }
-
-    //     // CREDIT TREASURY WITH PROTOCOL FEES
-    //     (bool sentC, ) = payable(factory.treasury()).call{value: protoEth}("");
-    //     require(sentC, "BNB transfer failed");
-
-    //     // Bonding curve maths starts here
-
-    //     // New total ETH raised if this purchase goes through
-    //     newRaisedETH = raisedETH + ethInEff;
-
-    //     // Calculate tokens sold at newRaisedETH (using bonding curve)
-    //     // Calculate how many tokens would be sold at this new point
-    //     tokensAfter = tokensSoldAt(newRaisedETH);
-    //     tokensBefore = tokensSoldAt(raisedETH);
-
-    //     uint256 tokensToBuy = tokensAfter - tokensBefore;
-
-    //     // If it exceeds what's left, cap it and recalculate ETH needed
-    //     uint256 tokensAvailable = vToken - tokensSold;
-
-    //     if (tokensToBuy > tokensAvailable) {
-    //         tokensToBuy = tokensAvailable;
-    //     }
-    //     // Compute the ETH needed to buy exactly these remaining tokens
-    //     uint256 newTokensSold = tokensSold + tokensToBuy;
-    //     uint256 denominator = vToken - newTokensSold; // y = vToken - tokensSold
-
-    //     require(denominator > 0, "Denominator zero");
-
-    //     // uint256 ethTarget = (k * 1e18) / denominator;
-    //     // require(ethTarget >= vETH * 1e18, "Invalid curve state");
-
-    //     uint256 ethTarget = (k * 1e18) / denominator; // 18 decimals scaled up to keep precision
-    //     require(ethTarget >= vETH, "Invalid curve state");
-
-    //     // uint256 requiredRaisedETH = (ethTarget - (vETH * 1e18)) / 1e18; // Unscale
-
-    //     // uint256 ethToAccept = requiredRaisedETH - raisedETH;
-
-    //     uint256 requiredRaisedETH = ethTarget - vETH; // both 18 decimals, result 18 decimals
-    //     uint256 ethToAccept = requiredRaisedETH - raisedETH; // assuming raisedETH is 18 decimals too
-
-    //     // Cap ethToAccept to msg.value just in case
-    //     if (ethToAccept > msg.value) {
-    //         ethToAccept = msg.value;
-    //     }
-
-    //     // Refund excess
-    //     uint256 refund = msg.value - ethToAccept;
-    //     if (refund > 0) {
-    //         payable(msg.sender).transfer(refund);
-    //     }
-
-    //     // Update state with adjusted ETH and tokens
-    //     raisedETH += ethToAccept;
-    //     tokensSold += tokensToBuy;
-
-    //     // Transfer tokens
-    //     // bool sent = CurveToken(token).transfer(msg.sender, 50);
-    //     // require(!sent, "Token transfer failed");
-
-    //     SafeTransferLib.safeTransfer(token, msg.sender, tokensToBuy);
-
-    //     if (tokensSold >= vToken || raisedETH >= curveLimit) {
-    //         migrationTriggered = true;
-    //         emit MigrationTriggered(raisedETH, tokensSold);
-    //     }
-
-    //     console.log("Hello world");
-    //     console.log("tokensToBuy in contract:", tokensToBuy);
-    //     console.log("ethToAccept in contract:", ethToAccept);
-    //     emit Bought(msg.sender, ethToAccept, tokensToBuy);
-
-    //     require(tokensToBuy >= minTokensOut, "slippage too high");
-    // }
 
     function buy(
         uint256 minTokensOut,
@@ -310,6 +197,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         if (refund > 0) {
             (bool sentRefund, ) = payable(msg.sender).call{value: refund}("");
             require(sentRefund, "ETH refund failed");
+            console.log("Refunding excess ETH:", refund);
         }
         // === CURVE CALCULATION ===
 
@@ -333,11 +221,7 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         vToken = newVTOKEN;
         console.log("this is the curve vToken after buy:.", vToken);
         console.log("tokens to buy:", tokensToBuy);
-        // 77,671,707.582617470159459352
-        // 778,270,509.977827050997782706
-        // 161,428,295.482767184524959298
 
-        // 161,428,295.482767184524959298
         // === STATE TRACKING ===
         raisedETH += ethInEff;
         tokensSold += tokensToBuy;
@@ -351,6 +235,8 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         if (raisedETH >= curveLimit) {
             migrationTriggered = true;
             emit MigrationTriggered(raisedETH, tokensSold);
+
+            migrateToLP();
         }
 
         emit Bought(msg.sender, ethInEff, tokensToBuy);
@@ -478,6 +364,10 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         vToken = newVToken;
         vETH = newVETH;
 
+        console.log(
+            "this is the curve ETH balance after sell:",
+            address(this).balance
+        );
         emit Sold(msg.sender, tokenAmountIn, ethInEff);
     }
 
@@ -526,10 +416,10 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
         uint256 _vETH = vETH;
         uint256 _vToken = vToken;
 
-        uint256 k = (_vETH * _vToken) / 1e18;
+        uint256 _k = (_vETH * _vToken) / 1e18;
 
         uint256 newVToken = _vToken + tokenAmountIn;
-        uint256 newVETH = (k * 1e18) / newVToken;
+        uint256 newVETH = (_k * 1e18) / newVToken;
 
         uint256 grossEthOut = _vETH - newVETH;
 
@@ -621,5 +511,96 @@ contract BondingCurve is ReentrancyGuard, Pausable, Ownable(msg.sender) {
 
     function getOwner() public pure returns (address owner) {
         return owner;
+    }
+
+    // Assumes caller is nonReentrant
+    function migrateToLP() internal whenNotPaused {
+        require(migrationTriggered, "Migration not triggered yet");
+        require(!lpMigrated, "Already migrated");
+
+        // Optional: define flat fees
+        uint256 migrationFeesBps = factory.migrationFeeBps();
+        uint256 migrationFees = (raisedETH * migrationFeesBps) / 10_000;
+        uint256 migrationFeeCreator = (raisedETH *
+            factory.migrationFeeBpsCreator()) / 10_000;
+        require(
+            raisedETH >= migrationFees + migrationFeeCreator,
+            "Insufficient ETH to cover fees"
+        );
+
+        address migrationFeeWallet = factory.migrationFeeWallet(); // 5% and creator 5%
+
+        uint256 netETH = raisedETH +
+            bonusLiquidity -
+            migrationFees -
+            migrationFeeCreator;
+
+        // === SPOT PRICE ===
+        require(vToken > 0, "No virtual tokens left");
+        uint256 priceAtMigration = (vETH * 1e18) / vToken;
+
+        // === TOKENS TO PAIR ===
+        uint256 tokensToLP = (netETH * 1e18) / priceAtMigration;
+
+        // Ensure we don’t exceed available tokens
+        uint256 maxTokensAvailable = CurveToken(token).balanceOf(address(this));
+        if (tokensToLP > maxTokensAvailable) {
+            tokensToLP = maxTokensAvailable;
+        }
+
+        // === Send migration fees ===
+        (bool feeSent, ) = payable(migrationFeeWallet).call{
+            value: migrationFees
+        }("");
+        require(feeSent, "Fee transfer failed");
+
+        creatorsRewards[creator] += migrationFeeCreator;
+
+        // === LP Creation ===
+        // You can integrate Uniswap, Raydium, etc., here
+        // 1. Check if pair exists
+        address WBNB = IPancakeRouter02(factory.getPancakeRouter()).WETH(); // WETH address on Ethereum mainnet
+        address pair = IPancakeFactory(factory.getPancakeFactory()).getPair(
+            token,
+            WBNB
+        );
+        if (pair == address(0)) {
+            pair = IPancakeFactory(factory.getPancakeFactory()).createPair(
+                token,
+                WBNB
+            );
+        }
+
+        // 2. Approve router to spend your tokens
+        IERC20(token).approve(factory.getPancakeRouter(), tokensToLP);
+
+        // 3. Add liquidity (msg.value is your BNB contribution)
+        IPancakeRouter02(factory.getPancakeRouter()).addLiquidityETH{
+            value: msg.value
+        }(
+            token,
+            tokensToLP,
+            (tokensToLP * 95) / 100, // accept up to 5% slippage
+            (netETH * 95) / 100,
+            address(this), // recipient of LP tokens
+            block.timestamp + 300
+        );
+
+        /*
+        CurveToken(token).approve(address(lpRouter), tokensToLP);
+        lpRouter.addLiquidityETH{value: netETH}(
+            token,
+            tokensToLP,
+            0,
+            0,
+            lpRecipient, // e.g. DAO, creator, etc.
+            block.timestamp
+        );
+
+        // === FINALIZE ===
+        lpMigrated = true;
+
+        */
+        emit LPMigrated(tokensToLP, netETH, priceAtMigration);
     }
 }

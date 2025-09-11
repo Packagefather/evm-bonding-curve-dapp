@@ -10,8 +10,10 @@ import {CurveToken} from "../../src/CurveToken.sol";
 import {Test, console} from "forge-std/Test.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import "../helpers/CurveMath.sol";
+import "../constants/constants.sol";
 
 contract BondingCurveTest is Test {
+    using Constants for *;
     BondingCurve public bondingCurve;
     BondingCurve public bondingCurveImpl;
     CurveFactory public factory;
@@ -33,11 +35,13 @@ contract BondingCurveTest is Test {
             name: "MyToken",
             symbol: "MTK",
             //allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
-            migrationMcapEth: 20 ether, // 25 ETH as full FDV
-            minHoldingForReferrer: 1e18 // Minimum holding to refer (1 token)
+            migrationMcapEth: Constants.CURVE_LIMIT, // 25 ETH as full FDV
+            minHoldingForReferrer: 1e18, // Minimum holding to refer (1 token)
+            vETH: Constants.CURVE_VETH
         });
 
     // 648,771,266.540642722117202269 32,500
+    // 799,835,914.685891995986059639
     function setUp() external {
         vm.deal(ADMINISTRATOR, STARTING_USER_BALANCE);
         vm.deal(Alice, STARTING_USER_BALANCE); // creator
@@ -121,13 +125,14 @@ contract BondingCurveTest is Test {
         console.log("========================testCurveCurrentData Ends==========================");
     }
 */
+
     function testBuyMinTokensOut() public {
         vm.startPrank(Bob);
         uint256 bobInitialBalance = Bob.balance;
         //10000000000000000000
-        console.log("Bob initial balance:", bobInitialBalance);
+        console.log("Bob initial eth balance:", bobInitialBalance);
         uint256 treasuryBalance = Treasury.balance;
-        console.log("Treasury initial balance:", treasuryBalance / 1e18);
+        console.log("Treasury initial eth balance:", treasuryBalance / 1e18);
 
         // Token Balance before buy
         uint256 curevTokenBalance = token.balanceOf(address(bondingCurve));
@@ -150,12 +155,40 @@ contract BondingCurveTest is Test {
         // 0.137500000000000000
         // 609,375,000.000000000000000000
         // 2.925000000000000000
+        // 90.000000000000000000
+        // 295,268,138.801261829652996848
+        // 0.300000000000000000
+        // 0.550000000000000000
+        // 400,000,000.000000000000000004
+        // 799,920,000.000000000007999203
+        // 799,917,948.928336081197739680
+        // 799,908,833.181531084048113392
+        // 799,835,914.685891995986059639
+        // 799,180,245.977441394073606764
 
-        for (uint256 i = 0; i < 12; i++) {
+        // 799180245977441394073606764
+        // 799589912882117894961289823
+        // 799726561865805108706175398
+        // 799794903874009449824509370
+        // 799835914685891995986059639
+        // 799863257563779663507629174
+        // 799882789335441171796035612
+        // 3,265,306.122448979591836735
+
+        // 783,196,641.057892566192134628
+        // 0.002000200020002000
+        // 2051071663918810259523
+        // 0.500000000000000000
+
+        //9115.746804997149626288 1.950000000000000000
+        // 2,836,879.432624113475177305
+
+        for (uint256 i = 0; i < 5; i++) {
             uint256 expectedTokens = bondingCurve.getTokensOut(SEND_VALUE);
             uint256 minTokensOut = (expectedTokens * 98) / 100; // Apply 1% slippage buffer
 
-            console.log("Tokens out for Bob:", minTokensOut); //30,028,873.917228103946102022 29,428,296.438883541867179981
+            console.log("mins Tokens out for Bob:", minTokensOut); //30,028,873.917228103946102022 29,428,296.438883541867179981
+            console.log("mins Tokens out for Bob (UI):", minTokensOut / 1e18); //30,028,873.917228103946102022 29,428,296.438883541867179981
             assert(minTokensOut > 0);
 
             bondingCurve.buy{value: SEND_VALUE}(minTokensOut, address(0)); // uint256 minTokensOut, address _referrer
@@ -163,7 +196,32 @@ contract BondingCurveTest is Test {
             console.log("raisedEth: ", bondingCurve.raisedETH());
         }
 
-        //bondingCurve.buy{value: SEND_VALUE}(minTokensOut, address(0));
+        // 189,418,907.198612315698178667
+        // 250,000,000.000000000000000004
+        // 0.250000000000000000
+        // 33,949,945.593035908596300327
+        // 29,248,948.865900131714016528
+
+        // uint256 expectedTokens = bondingCurve.getTokensOut(SEND_VALUE);
+        // uint256 minTokensOut = (expectedTokens * 98) / 100; // Apply 1% slippage buffer
+
+        // bondingCurve.buy{value: SEND_VALUE}(minTokensOut, address(0));
+
+        // 1.950000000000000000 * 5 = 9.750000000000000000
+        // tokensOut = 41010811882546161550269
+        // 71,070,615.034168564920273349
+
+        // 1950000000000000000 - 394936708860759493670886076 - 394936708860759493670886076
+        // 1950000000000000000 - 133876850461274404634198670 - 528813559322033898305084746
+        // 1950000000000000000 - 67364784627010687682176401 - 596178343949044585987261147
+        // 1950000000000000000 - 40556349928506434420902119 - 636734693877551020408163266
+        // 1950000000000000000 - 27095093356491532783326097 - 663829787234042553191489363
+        // 1950000000000000000 - 19381891598074235129678522 - 683211678832116788321167885
+        // 1950000000000000000 - 14551899442643595065413587 - 697763578274760383386581472
+        // 1950000000000000000 - 11327330816148707522509440 - 709090909090909090909090912
+        // 1950000000000000000 - 9067658684026970471983260 - 718158567774936061381074172
+        // 1950000000000000000 - 7422827573901147921251413 - 725581395348837209302325585
+        // 500000000000000000 - 1691331923890063424947146 - 727272727272727272727272731
 
         uint256 bobFinalBalance = Bob.balance;
         uint256 tokenBalanceAfter = token.balanceOf(Bob);
@@ -180,14 +238,25 @@ contract BondingCurveTest is Test {
             tokenBalanceAfter / 1e18
         );
 
+        // 9.750000000000000000
         // 5.850000000000000000
+        // 71,070,615.034168564920273349
+        // 0.050000000000000000
         //assert(tokenBalanceAfter > tokenBalanceBefore);
         assert(bobFinalBalance < bobInitialBalance);
 
         // 2.925000000000000000
+        // 2.937575461727245041
+        // 280,147,676
+        // 719,852,323
         address refOff = bondingCurve.referrerOf(Bob);
         console.log("Bob's referrer:", refOff);
         uint256 treasuryBalanceAfter = Treasury.balance;
+        uint256 curveFinalBalance = address(bondingCurve).balance;
+        console.log("Curve final balance:", curveFinalBalance);
+        //console.log("Curve final balance (UI):", curveFinalBalance / 1e18);
+        // 1.950000000000000000
+        // 71,070,615.034168564920273349
         console.log("Treasury final balance:", treasuryBalanceAfter);
 
         // uint256 tokenAfter = bondingCurve.tokensAfter();
@@ -195,7 +264,7 @@ contract BondingCurveTest is Test {
         // console.log("Tokens Before:", tokenBefore);
         // console.log("Tokens After:", tokenAfter);
 
-        console.log("New raised eth", bondingCurve.newRaisedETH());
+        //console.log("New raised eth", bondingCurve.newRaisedETH());
         uint256 tokensSold = bondingCurve.tokensSold();
         console.log("tokens Sold", tokensSold, tokensSold / 1e18);
         // uint256 ethWhole = treasuryBalanceAfter / 1e18;
@@ -213,18 +282,20 @@ contract BondingCurveTest is Test {
         );
     }
 
-    /*
     function testSellTokens() public {
         //vm.startPrank(Bob);
-        testBuyMinTokensOut();
-        testBuyMinTokensOut();
+        testBuyMinTokensOut(); // this will ensure Bob has tokens to sell
+        //testBuyMinTokensOut();
         // Initial balances
         uint256 bobInitialEthBalance = Bob.balance;
-        console.log("Bob initial ETH balance:", bobInitialEthBalance);
+        console.log(
+            "Bob initial ETH balance before Sell:",
+            bobInitialEthBalance
+        );
 
         uint256 treasuryInitialEthBalance = Treasury.balance;
         console.log(
-            "Treasury initial ETH balance:",
+            "Treasury initial ETH balance before Sell:",
             treasuryInitialEthBalance / 1e18
         );
 
@@ -232,7 +303,7 @@ contract BondingCurveTest is Test {
         //224,460,431.654676258992805756
         // 22,446,043.165467625899280575
         console.log(
-            "Bob initial token balance:",
+            "Bob initial token balance before sell:",
             bobInitialTokenBalance / 1e18
         ); //
 
@@ -259,6 +330,7 @@ contract BondingCurveTest is Test {
         console.log("Expected ETH out:", expectedEthOut);
         //0.123264867018627355
         // 0.100908955075206694
+        // 6.617783837179247675
         console.log("Minimum ETH out (with 2% slippage):", minEthOut);
 
         // 0.067245727662117741
@@ -289,14 +361,24 @@ contract BondingCurveTest is Test {
             treasuryFinalEthBalance / 1e18
         );
 
+        // 96.617783837179247675
+        // 79,983,591.468589199598605963 - 6.617783837179247675
         // Assertions
         assert(bobFinalEthBalance > bobInitialEthBalance); // Bob received ETH
         assert(bobFinalTokenBalance < bobInitialTokenBalance); // Bob's tokens decreased
         assert(curveFinalTokenBalance > curveInitialTokenBalance); // Curve got tokens back
 
+        testBuyMinTokensOut();
+
+        // MIGRATION DETAILING
+        // 241,797,923.066205414825716807
+        // 9.796044303797468355
+        // 0.000000040513351726
+
         vm.stopPrank();
     }
 
+    /*
     function testBuyToHitCurve() public {
         //vm.startPrank(Bob);
         testBuyMinTokensOut();
@@ -314,6 +396,13 @@ contract BondingCurveTest is Test {
 
     */
 
+    // 241,797,923.066205414825716807
+    // 9.796044303797468355
+    // 0.000000040513351726
+
+    // function testMigration() public {
+    //     bondingCurve.migrateToLP();
+    // }
     // 5.362500000000000000
     /*
     function testFundFailsWithoutEnoughETH() public skipZkSync {

@@ -1,27 +1,33 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import { Script, console } from "forge-std/Script.sol";
-import { BondingCurve } from "../src/BondingCurve.sol";
-import { CurveFactory } from "../src/Factory.sol";
-import { DevOpsTools } from "lib/foundry-devops/src/DevOpsTools.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {BondingCurve} from "../src/BondingCurve.sol";
+import {CurveFactory} from "../src/Factory.sol";
+import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
+import "../test/constants/constants.sol";
 
 contract LaunchToken is Script {
-    uint256 SEND_VALUE = 0.1 ether;
-    CurveFactory.CreateParams params = CurveFactory.CreateParams({
-        name: "MyToken",
-        symbol: "MTK",
-        //allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
-        migrationMcapEth: 10 ether, // 25 ETH as full FDV
-        minHoldingForReferrer: 1e18 // Minimum holding to refer (1 token)
-     });
+    using Constants for *;
 
-    function initializeCurve(address mostRecentlyDeployed)
-        public
-        returns (address curve, address token)
-    {
+    uint256 SEND_VALUE = 0.1 ether;
+    CurveFactory.CreateParams params =
+        CurveFactory.CreateParams({
+            name: "MyToken",
+            symbol: "MTK",
+            //allocationPercent: 80000, // 80% in basis points (e.g., 80000 = 80%)
+            migrationMcapEth: Constants.CURVE_LIMIT, // 25 ETH as full FDV
+            minHoldingForReferrer: 1e18, // Minimum holding to refer (1 token)
+            vETH: Constants.CURVE_VETH
+        });
+
+    function initializeCurve(
+        address mostRecentlyDeployed
+    ) public returns (address curve, address token) {
         vm.startBroadcast();
-        (curve, token) = CurveFactory((mostRecentlyDeployed)).createCurve(params);
+        (curve, token) = CurveFactory((mostRecentlyDeployed)).createCurve(
+            params
+        );
         console.log("Deployed Curve at:", curve);
         console.log("Deployed Token at:", token);
 
@@ -29,8 +35,10 @@ contract LaunchToken is Script {
     }
 
     function run() external {
-        address mostRecentlyDeployed =
-            DevOpsTools.get_most_recent_deployment("CurveFactory", block.chainid);
+        address mostRecentlyDeployed = DevOpsTools.get_most_recent_deployment(
+            "CurveFactory",
+            block.chainid
+        );
         initializeCurve(mostRecentlyDeployed);
     }
 }

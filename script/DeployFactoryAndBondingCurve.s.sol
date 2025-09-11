@@ -30,7 +30,8 @@ contract ContractsDeployment is Script {
             protocolFeeBps: 200, // example: 2%
             referralFeeBps: 50, // example: 0.5%
             antifiludFeeBps: 3000, // example: 30%
-            migrationFeeBps: 100, // example: 1%
+            migrationFeeBps: 500, // example: 5%
+            migrationFeeBpsCreator: 500, // 5%
             treasury: Treasury, // or your treasury address
             migrationFeeWallet: address(4), // or another wallet
             minCurveLimitEth: 1 ether, // minimum curve limit

@@ -17,6 +17,7 @@ contract CurveFactory is Ownable(msg.sender) {
     uint96 public referralFeeBps; // 2% charged to referrer
     uint96 public antifiludFeeBps; // 30% charged to filud. 50% goes to creator, 50% goes to liquidity pool
     uint96 public migrationFeeBps; // 10% charged to migration. 50% goes to creator, 50% goes to protocol
+    uint96 public migrationFeeBpsCreator;
     uint96 public antifiludLauncherQuotaBps;
     uint256 public minCurveLimitEth = 10 ether; // min liquidity to add at init
     uint256 public maxCurveLimitEth = 1000 ether; // max liquidity to add at init
@@ -25,6 +26,9 @@ contract CurveFactory is Ownable(msg.sender) {
     //Token details
     uint8 public constant decimals = 18;
     uint256 public constant totalSupply = 1_000_000_000e18;
+
+    address public PancakeRouter = 0x10ED43C718714eb63d5aA57B78B54704E256024E;
+    address public PancakeFactory = 0xcA143Ce32Fe78f1f701BfA51C0BfC9D8aC1A6C9;
 
     // Pool details
     //uint256 public vETH = 2.5e18; // initial virtual ETH, e.g., 2.5e18 wei (2.5 ETH)
@@ -47,13 +51,15 @@ contract CurveFactory is Ownable(msg.sender) {
     event AntifiludFeeBpsUpdated(uint96 newFee);
     event MigrationFeeBpsUpdated(uint96 newFee);
     event MinMaxCurveLimitUpdated(uint256 min, uint256 max);
+    event MigrationFeeBpsCreatorUpdated(uint96 _basisPoint);
 
     struct ConfigParams {
         address curveImpl;
         uint96 protocolFeeBps;
         uint96 referralFeeBps;
         uint96 antifiludFeeBps;
-        uint96 migrationFeeBps;
+        uint96 migrationFeeBps; // 5%
+        uint96 migrationFeeBpsCreator; // 5%
         address treasury;
         address migrationFeeWallet;
         uint256 minCurveLimitEth;
@@ -68,6 +74,7 @@ contract CurveFactory is Ownable(msg.sender) {
         string symbol;
         uint256 migrationMcapEth; // FDV at A, e.g., 25e18
         uint256 minHoldingForReferrer;
+        uint256 vETH;
     }
 
     constructor(ConfigParams memory p) {
@@ -78,6 +85,7 @@ contract CurveFactory is Ownable(msg.sender) {
         require(p.referralFeeBps <= 10_000, "fee>100%");
         require(p.antifiludFeeBps <= 10_000, "fee>100%");
         require(p.migrationFeeBps <= 10_000, "fee>100%");
+        require(p.migrationFeeBpsCreator <= 10_000, "fee>100%");
         require(p.minCurveLimitEth < p.maxCurveLimitEth, "min>=max");
         require(p.fixedAllocationPercent <= 10_000, "percent>100%");
         require(p.fixedAllocationOfVTokenPercent <= 10_000, "percent>100%");
@@ -88,6 +96,7 @@ contract CurveFactory is Ownable(msg.sender) {
         referralFeeBps = p.referralFeeBps;
         antifiludFeeBps = p.antifiludFeeBps;
         migrationFeeBps = p.migrationFeeBps;
+        migrationFeeBpsCreator = p.migrationFeeBpsCreator;
         protocolFeeBps = p.protocolFeeBps;
         migrationFeeWallet = p.migrationFeeWallet;
         maxCurveLimitEth = p.maxCurveLimitEth;
@@ -115,7 +124,8 @@ contract CurveFactory is Ownable(msg.sender) {
             token,
             p.migrationMcapEth,
             msg.sender, // this is the creator
-            p.minHoldingForReferrer
+            p.minHoldingForReferrer,
+            p.vETH
         );
 
         tokenUsed[token] = true;
@@ -175,6 +185,11 @@ contract CurveFactory is Ownable(msg.sender) {
         emit MigrationFeeWalletUpdated(_wallet);
     }
 
+    function setMigrationFeeBpsCreator(uint96 _basisPoint) external onlyOwner {
+        migrationFeeBpsCreator = _basisPoint;
+        emit MigrationFeeBpsCreatorUpdated(_basisPoint);
+    }
+
     // Upgrade the implementation for future clones
     function setImplementation(address newImpl) external onlyOwner {
         require(newImpl != address(0), "Invalid implementation");
@@ -194,8 +209,20 @@ contract CurveFactory is Ownable(msg.sender) {
         emit superAdminUpdated(_superAdmin);
     }
 
-    function setAntifiludLauncherQuotaBps(uint96 bps) external onlyOwner {
-        require(bps <= 10_000, "fee>100%");
-        antifiludLauncherQuotaBps = bps;
+    function setAntifiludLauncherQuotaBps(uint96 _bps) external onlyOwner {
+        require(_bps <= 10_000, "fee>100%");
+        antifiludLauncherQuotaBps = _bps;
+
+        //emit setting
+    }
+
+    function setPancakeRouter(address _router) external onlyOwner {
+        require(_router != address(0), "Invalid address");
+        PancakeRouter = _router;
+    }
+
+    function setPancakeFactory(address _factory) external onlyOwner {
+        require(_factory != address(0), "Invalid address");
+        PancakeFactory = _factory;
     }
 }
