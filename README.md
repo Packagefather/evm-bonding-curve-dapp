@@ -2,6 +2,8 @@ Pump.fun-style Bonding Curve dApp (EVM)
 
 [![Foundry CI](https://github.com/packagefather/evm-bonding-curve-dapp/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/packagefather/evm-bonding-curve-dapp/actions/workflows/test.yml)
 
+If you need the full code, contact me on X @udoma8
+
 
 A decentralized application (dApp) that implements a bonding curve token launch mechanism on EVM-compatible chains (Ethereum, Base, Arbitrum, etc.).
 
@@ -328,3 +330,5 @@ MIT License © 2025 [Packagefather]
 [Uniswap V2 Docs](https://uniswap.org)
 
 [Foundry Book](https://getfoundry.sh/)
+
+If you need the full code, contact me on X @udoma8
